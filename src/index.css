@@ -1,0 +1,139 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+
+  /* 图表方案色槽（基准方案恒用 slot-1 蓝） */
+  --chart-slot-1: #2a78d6;
+  --chart-slot-2: #eb6834;
+  --chart-slot-3: #1baf7a;
+  --chart-slot-4: #eda100;
+
+  /* 状态色：仅用于断裂点/预警/宽心指数带位，绝不充当系列色 */
+  --status-good: #0ca30c;
+  --status-warn: #fab219;
+  --status-severe: #ec835a;
+  --status-danger: #d03b3b;
+
+  /* 网格线 */
+  --chart-grid: #e1e0d9;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.269 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.371 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 18%);
+  --ring: oklch(0.556 0 0);
+
+  --chart-slot-1: #3987e5;
+  --chart-slot-2: #d95926;
+  --chart-slot-3: #199e70;
+  --chart-slot-4: #c98500;
+
+  --status-good: #0ca30c;
+  --status-warn: #fab219;
+  --status-severe: #ec835a;
+  --status-danger: #d03b3b;
+
+  --chart-grid: #2c2c2a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-slot-1: var(--chart-slot-1);
+  --color-chart-slot-2: var(--chart-slot-2);
+  --color-chart-slot-3: var(--chart-slot-3);
+  --color-chart-slot-4: var(--chart-slot-4);
+  --color-status-good: var(--status-good);
+  --color-status-warn: var(--status-warn);
+  --color-status-severe: var(--status-severe);
+  --color-status-danger: var(--status-danger);
+  --color-chart-grid: var(--chart-grid);
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  /* 可点击元素统一手型光标（Tailwind v4 preflight 把 button 改成了 default） */
+  button:not(:disabled),
+  [role='button']:not(:disabled),
+  select:not(:disabled),
+  summary,
+  a,
+  label:has(input[type='checkbox']),
+  input[type='checkbox'],
+  input[type='range'],
+  input[type='radio'] {
+    cursor: pointer;
+  }
+  button:disabled,
+  input[type='number'],
+  input[type='text'] {
+    cursor: default;
+  }
+}
