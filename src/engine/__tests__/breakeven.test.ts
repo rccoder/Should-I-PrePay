@@ -6,7 +6,7 @@ import type { AnalysisInput, PrepayEvent } from '../types'
 /**
  * 解析可控的盈亏平衡案例：
  * 基准 = 13 万留在理财池滚存 + 工资正常还贷；方案 = m0 用池里 12 万一次性还清贷款。
- * f(r) = 24·M − 120000·(1+r/12)^24，穿越点 r* = 12((24M/120000)^(1/24) − 1) ≈ 6.1%
+ * 还款额以 m=0 供款后余额封顶，精确推导见下方用例内注释；r* ≈ 5.88%
  */
 function makeInput(): AnalysisInput {
   const events: PrepayEvent[] = [

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { computeHorizonMonths, simulateScenario } from '../simulate'
 import { runAnalysis } from '../index'
+import { annuityPayment } from '../loan'
 import type {
   AnalysisInput,
   PrepayEvent,
@@ -596,5 +597,266 @@ describe('机会成本口径端到端（runAnalysis）', () => {
     const stress = simulateScenario(input, input.scenarios[0]!, true, 12)
     expect(base.snaps[11]!.pools['p']!).toBeCloseTo(100_000 * Math.pow(1.005, 12), 2)
     expect(stress.snaps[11]!.pools['p']!).toBeCloseTo(100_000 * Math.pow(1 - 0.02 / 12, 12), 2)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 回归：公积金到期处理绝不销毁资金（冲抵只扣贷款余额，结余可提取进理财池）
+// ---------------------------------------------------------------------------
+
+describe('回归：公积金一次性冲抵不销毁资金', () => {
+  const i4 = 0.04 / 12
+
+  /** m=12 计划供款后的贷款余额（闭式解） */
+  function balanceAfterMonths(principal: number, i: number, n: number): number {
+    const M = annuityPayment(principal, i, n)
+    const b = principal * Math.pow(1 + i, 12) - M * ((Math.pow(1 + i, 12) - 1) / i)
+    return b - (M - b * i)
+  }
+
+  function fundFixture(
+    policy: 'hold' | 'lumpPrepay' | 'withdrawToWealth',
+    overrides: Partial<AnalysisInput> = {},
+  ): AnalysisInput {
+    return makeInput({
+      global: {
+        startYear: 2026, startMonth: 1, endMode: 'auto',
+        inflationEnabled: false, inflationRate: 0.025,
+        fundMonthlyOffset: false,
+        emergencyReserve: 0,
+        monthlyTopUpSource: 'cash-only',
+      },
+      loans: [
+        {
+          id: 'loan-c', name: '商贷', kind: 'commercial', principal: 30_000,
+          remainingMonths: 60, currentRate: 0.04, method: 'annuity', rateRules: [],
+        },
+      ],
+      cash: { initialBalance: 500_000 },
+      pools: [{ id: 'p', name: '理财', riskLevel: 'low', initialBalance: 0, expectedAnnualReturn: 0, maxLossPct: 0 }],
+      fund: {
+        initialBalance: 200_000,
+        annualContribution: 0,
+        contributionYears: 1, // processAtM = 12
+        interestRate: 0,
+        maturityPolicy: policy,
+        maturityPrepayEffect: 'shorten-term',
+      },
+      ...overrides,
+    })
+  }
+
+  it('冲抵后结余转入理财池：与 hold 政策在冲抵月净资产完全一致', () => {
+    const holdIn = fundFixture('hold')
+    const lumpIn = fundFixture('lumpPrepay')
+    const hold = simulateScenario(holdIn, holdIn.scenarios[0]!, false, 24)
+    const lump = simulateScenario(lumpIn, lumpIn.scenarios[0]!, false, 24)
+    const l11 = lump.snaps[11]!
+    const l12 = lump.snaps[12]!
+
+    // 手工对账：冲抵额 = m=12 供款后余额，剩余 20 万 − 冲抵额 进池
+    const b13 = balanceAfterMonths(30_000, i4, 60)
+    expect(l11.fundBalance).toBeCloseTo(200_000, 6)
+    expect(l12.fundBalance).toBe(0)
+    expect(l12.loans[0]!.balance).toBe(0)
+    expect(Object.values(l12.pools).reduce((a, b) => a + b, 0)).toBeCloseTo(200_000 - b13, 2)
+    // 资产守恒：同样的钱只是换了账户
+    expect(l12.netWorth - hold.snaps[12]!.netWorth).toBeCloseTo(0, 6)
+  })
+
+  it('组合贷按利率从高到低逐笔冲抵（而非数组顺序），仍不足部分再进池', () => {
+    const iC = 0.12 / 12
+    const iF = 0.03 / 12
+    // 数组顺序故意低利率在前：验证按利率排序而非数组序
+    const input = fundFixture('lumpPrepay', {
+      loans: [
+        {
+          id: 'lf', name: '公积金贷', kind: 'fund', principal: 15_000,
+          remainingMonths: 120, currentRate: 0.03, method: 'annuity', rateRules: [],
+        },
+        {
+          id: 'lc', name: '商贷', kind: 'commercial', principal: 20_000,
+          remainingMonths: 60, currentRate: 0.12, method: 'annuity', rateRules: [],
+        },
+      ],
+      fund: {
+        initialBalance: 25_000,
+        annualContribution: 0,
+        contributionYears: 1,
+        interestRate: 0,
+        maturityPolicy: 'lumpPrepay',
+        maturityPrepayEffect: 'shorten-term',
+      },
+    })
+    const { snaps } = simulateScenario(input, input.scenarios[0]!, false, 24)
+    const s12 = snaps[12]!
+    const bc = balanceAfterMonths(20_000, iC, 60)
+    const bf = balanceAfterMonths(15_000, iF, 120)
+    const remainingAfterFirst = 25_000 - bc
+    expect(s12.fundBalance).toBe(0)
+    // 高利率商贷被全额冲抵
+    expect(s12.loans.find((l) => l.loanId === 'lc')!.balance).toBe(0)
+    // 公积金贷只被冲掉剩余额
+    expect(s12.loans.find((l) => l.loanId === 'lf')!.balance).toBeCloseTo(bf - remainingAfterFirst, 2)
+    expect(Object.values(s12.pools).reduce((a, b) => a + b, 0)).toBeCloseTo(0, 6)
+  })
+
+  it('无房贷在还时全额转入理财池而非滞留或消失', () => {
+    const input = fundFixture('lumpPrepay', {
+      loans: [
+        {
+          id: 'car', name: '车贷', kind: 'other', principal: 12_000,
+          remainingMonths: 36, currentRate: 0.10, method: 'annuity', rateRules: [],
+        },
+      ],
+    })
+    const { snaps } = simulateScenario(input, input.scenarios[0]!, false, 24)
+    const s12 = snaps[12]!
+    expect(s12.fundBalance).toBe(0)
+    expect(Object.values(s12.pools).reduce((a, b) => a + b, 0)).toBeCloseTo(200_000, 4)
+    expect(s12.loans.find((l) => l.loanId === 'car')!.balance).toBeGreaterThan(0)
+  })
+
+  it('withdrawToWealth 目标池不存在时保留公积金，不产生幽灵池也不丢钱', () => {
+    const input = makeInput({
+      global: {
+        startYear: 2026, startMonth: 1, endMode: 'auto',
+        inflationEnabled: false, inflationRate: 0.025,
+        fundMonthlyOffset: false,
+        emergencyReserve: 0,
+        monthlyTopUpSource: 'cash-only',
+      },
+      loans: [],
+      incomes: [],
+      living: [],
+      cash: { initialBalance: 0 },
+      pools: [],
+      fund: {
+        initialBalance: 5_000,
+        annualContribution: 0,
+        contributionYears: 1,
+        interestRate: 0,
+        maturityPolicy: 'withdrawToWealth',
+        maturityPrepayEffect: 'shorten-term',
+        withdrawToPoolId: 'ghost-pool',
+      },
+    })
+    const horizon = computeHorizonMonths(input)
+    const { snaps } = simulateScenario(input, input.scenarios[0]!, false, horizon)
+    const last = snaps[snaps.length - 1]!
+    expect(last.fundBalance).toBeCloseTo(5_000, 6)
+    expect(Object.keys(last.pools)).toHaveLength(0)
+    expect(last.netWorth).toBeCloseTo(5_000, 6)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 回归：第 0 年生效的利率规则必须在起点月重锚（月供按新利率摊还）
+// ---------------------------------------------------------------------------
+
+describe('回归：第 0 年利率规则触发初始重锚', () => {
+  it('利息按新利率计且月供同步重算，恰好 24 期还清', () => {
+    const input = makeInput({
+      loans: [
+        {
+          id: 'loan-c', name: '商业贷款', kind: 'commercial', principal: 120_000,
+          remainingMonths: 24, currentRate: 0.12, method: 'annuity',
+          rateRules: [{ startAfterYear: 0, annualRate: 0.06 }],
+        },
+      ],
+    })
+    const horizon = computeHorizonMonths(input)
+    const { snaps } = simulateScenario(input, input.scenarios[0]!, false, horizon)
+    const s0 = snaps[0]!
+    const correctAnchor = annuityPayment(120_000, 0.06 / 12, 24)
+    // 利息用新利率
+    expect(s0.cumInterest).toBeCloseTo(120_000 * 0.005, 6)
+    // 月供也按新利率摊还
+    expect(s0.loans[0]!.scheduledPayment).toBeCloseTo(correctAnchor, 2)
+    // 恰好在第 24 个月（index 23）归零
+    const payoff = snaps.find((s) => s.loans[0]!.balance === 0)
+    expect(payoff?.m).toBe(23)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 回归：终点年（退休年/自定义终点年）含当年全年；有界重复事件完整发生
+// ---------------------------------------------------------------------------
+
+describe('回归：统一终点覆盖终点年全年', () => {
+  function yearSpanInput(globalPatch: Parameters<typeof Object.assign>[1]): AnalysisInput {
+    return makeInput({
+      loans: [],
+      incomes: [{ id: 'inc', startYear: 2026, endYear: 2040, annualSalary: 120_000, annualBonus: 0, bonusMonth: 1 }],
+      living: [{ id: 'liv', startYear: 2026, endYear: 2045, annualAmount: 24_000 }],
+      global: {
+        startYear: 2026, startMonth: 1, endMode: 'auto',
+        inflationEnabled: false, inflationRate: 0.025,
+        fundMonthlyOffset: true, emergencyReserve: 0,
+        monthlyTopUpSource: 'cash-only',
+        ...globalPatch,
+      } as AnalysisInput['global'],
+    })
+  }
+
+  it('customEndYear=2028 模拟到 2028-12：三年净流入 288,000', () => {
+    const input = yearSpanInput({ endMode: 'custom', customEndYear: 2028 })
+    const h = computeHorizonMonths(input)
+    expect(h).toBe(36)
+    const { snaps } = simulateScenario(input, input.scenarios[0]!, false, h)
+    expect(snaps[snaps.length - 1]!.cash).toBeCloseTo(36 * (10_000 - 2_000), 6)
+  })
+
+  it('retireYear 终点不因有无公积金而漂移', () => {
+    const noFund = yearSpanInput({ retireYear: 2036 })
+    const withFund = makeInput({
+      loans: [],
+      incomes: [{ id: 'inc', startYear: 2026, endYear: 2040, annualSalary: 120_000, annualBonus: 0, bonusMonth: 1 }],
+      living: [{ id: 'liv', startYear: 2026, endYear: 2045, annualAmount: 24_000 }],
+      global: {
+        startYear: 2026, startMonth: 1, endMode: 'auto',
+        inflationEnabled: false, inflationRate: 0.025,
+        fundMonthlyOffset: true, emergencyReserve: 0,
+        monthlyTopUpSource: 'cash-only', retireYear: 2036,
+      },
+      fund: {
+        initialBalance: 10_000, annualContribution: 12_000, contributionYears: 20,
+        interestRate: 0.015, maturityPolicy: 'withdrawToWealth', maturityPrepayEffect: 'shorten-term',
+      },
+    })
+    expect(computeHorizonMonths(noFund)).toBe(132)
+    expect(computeHorizonMonths(withFund)).toBe(132)
+  })
+})
+
+describe('回归：有界重复事件计入统一终点', () => {
+  function tuitionInput(repeat?: { everyYears: number; count?: number }): AnalysisInput {
+    return makeInput({
+      loans: [],
+      incomes: [],
+      living: [],
+      cash: { initialBalance: 3_000_000 },
+      lifeEvents: [
+        {
+          id: 'edu', type: 'big-expense', monthIndex: 0, label: '学费',
+          amount: 60_000, source: 'cash',
+          ...(repeat ? { repeat } : {}),
+        },
+      ],
+    })
+  }
+
+  it('每年学费 ×10 年扣满 10 次', () => {
+    const input = tuitionInput({ everyYears: 1, count: 10 })
+    // 无 monthOfYear 时发生月为 0,12,…,108（共 10 次），终点须覆盖末次
+    const h = computeHorizonMonths(input)
+    expect(h).toBe(109)
+    const { snaps } = simulateScenario(input, input.scenarios[0]!, false, h)
+    expect(snaps[snaps.length - 1]!.cash).toBeCloseTo(3_000_000 - 600_000, 6)
+  })
+
+  it('无界重复不延伸终点：单独存在时保持最小 12 个月', () => {
+    const input = tuitionInput({ everyYears: 1 })
+    expect(computeHorizonMonths(input)).toBe(12)
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { expandEvents, EVENT_PRIORITY } from '../events'
+import { expandEvents, EVENT_PRIORITY, lastBoundedOccurrence } from '../events'
 import type {
   BigExpenseEvent,
   BigIncomeEvent,
@@ -76,5 +76,53 @@ describe('expandEvents 事件展开', () => {
     expect(EVENT_PRIORITY['big-income']).toBeLessThan(EVENT_PRIORITY['big-expense'])
     expect(EVENT_PRIORITY['big-expense']).toBeLessThan(EVENT_PRIORITY.prepay)
     expect(EVENT_PRIORITY.prepay).toBeLessThan(EVENT_PRIORITY.invest)
+  })
+})
+
+describe('lastBoundedOccurrence 有界重复的末次发生月', () => {
+  it('everyYears + count：末次 = 第 count−1 次吸附位置', () => {
+    const ev: PrepayEvent = {
+      id: 'a', type: 'prepay', monthIndex: 0, amount: 1,
+      effect: 'shorten-term', source: 'cash',
+      repeat: { everyYears: 1, count: 10 },
+    }
+    // i=0 在月 0；i≥1 落在 (anchorYear+i)·12+0 → 第 10 次在月 108
+    expect(lastBoundedOccurrence(ev)).toBe(108)
+  })
+
+  it('带 monthOfYear 吸附时按吸附结果计', () => {
+    const ev: BigExpenseEvent = {
+      id: 'b', type: 'big-expense', monthIndex: 14, label: '教育',
+      amount: 1, source: 'cash',
+      repeat: { everyYears: 1, monthOfYear: 6, count: 3 },
+    }
+    // 发生月 17、29、41（与 expandEvents 用例同源）
+    expect(lastBoundedOccurrence(ev)).toBe(41)
+  })
+
+  it('仅 untilMonth：取不超过它的最后一次', () => {
+    const ev: PrepayEvent = {
+      id: 'c', type: 'prepay', monthIndex: 0, amount: 1,
+      effect: 'reduce-payment', source: 'cash',
+      repeat: { everyMonths: 6, untilMonth: 20 },
+    }
+    expect(lastBoundedOccurrence(ev)).toBe(18)
+  })
+
+  it('无界重复、无重复事件与定投返回 null（不延伸终点）', () => {
+    const unbounded: BigExpenseEvent = {
+      id: 'd', type: 'big-expense', monthIndex: 3, label: '',
+      amount: 1, source: 'cash', repeat: { everyYears: 1 },
+    }
+    const single: PrepayEvent = {
+      id: 'e', type: 'prepay', monthIndex: 5, amount: 1,
+      effect: 'shorten-term', source: 'cash',
+    }
+    const invest: PeriodicInvestEvent = {
+      id: 'f', type: 'invest', monthIndex: 2, monthOfYear: 12, amount: 1, poolId: 'p',
+    }
+    expect(lastBoundedOccurrence(unbounded)).toBeNull()
+    expect(lastBoundedOccurrence(single)).toBeNull()
+    expect(lastBoundedOccurrence(invest)).toBeNull()
   })
 })

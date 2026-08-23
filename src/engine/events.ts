@@ -56,6 +56,32 @@ function occurrenceCap(ev: SimEvent, horizon: number): (i: number, month: number
   }
 }
 
+/** 有界重复扫描的防御性步数上限（正常输入远达不到） */
+const MAX_OCCURRENCE_SCAN = 100_000
+
+/**
+ * 有界重复事件的最后一次发生月；返回 null 表示「不延伸统一终点」：
+ * 无重复、无界重复（既无 count 也无 untilMonth）与定投都随终点 H 截断。
+ */
+export function lastBoundedOccurrence(ev: SimEvent): number | null {
+  if (ev.type === 'invest') return null
+  const repeat = 'repeat' in ev ? ev.repeat : undefined
+  if (!repeat) return null
+  const { count, untilMonth } = repeat
+  if (count === undefined && untilMonth === undefined) return null
+  if (count !== undefined) {
+    if (count <= 0) return null
+    return occurrenceMonth(ev, count - 1)
+  }
+  let last: number | null = null
+  for (let i = 0; i < MAX_OCCURRENCE_SCAN; i++) {
+    const month = occurrenceMonth(ev, i)
+    if (month === null || month > untilMonth!) break
+    last = month
+  }
+  return last
+}
+
 /**
  * 展开全部事件 → Map<月序, 事件[]>，同月按执行优先级 + id 稳定排序（坑 7：确定性）。
  * invest 无 repeat 概念，天然每年一次直到终点。

@@ -29,7 +29,6 @@ export function BreakevenChart({
     pct: (r * 100).toFixed(2),
     saving: Math.round(breakeven.savings[i] ?? 0),
   }))
-  const crossing = breakeven.crossings[0]
 
   return (
     <ResponsiveContainer width="100%" height={240}>
@@ -70,22 +69,24 @@ export function BreakevenChart({
           dot={false}
           isAnimationActive={false}
         />
-        {crossing !== undefined && (
+        {/* f(r) 不保证单调：全部穿越点都标注，避免只看第一个得出反向结论 */}
+        {breakeven.crossings.map((c, idx) => (
           <ReferenceDot
-            x={(crossing * 100).toFixed(2)}
+            key={idx}
+            x={(c * 100).toFixed(2)}
             y={0}
             r={5}
             fill={STATUS_COLORS.good}
             stroke="var(--background)"
             strokeWidth={2}
             label={{
-              value: `临界 ${formatPercent(crossing)}`,
+              value: `临界 ${formatPercent(c)}`,
               fontSize: 10,
               fill: STATUS_COLORS.good,
               position: 'top',
             }}
           />
-        )}
+        ))}
       </LineChart>
     </ResponsiveContainer>
   )

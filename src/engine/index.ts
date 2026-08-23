@@ -83,7 +83,7 @@ export {
   reanchorOnRateChange,
   solveAnnuityMonths,
 } from './loan'
-export { expandEvents } from './events'
+export { expandEvents, lastBoundedOccurrence } from './events'
 export { summarizeScenario } from './metrics'
 export { bandOf, computePeaceScore, coverageMonths, mapScore } from './score'
 export { breakevenScan } from './breakeven'

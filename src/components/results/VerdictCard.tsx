@@ -51,7 +51,9 @@ export function VerdictCard({
   const brokeBase = target.score.brokeFromBase !== null
   const brokeStress = target.score.brokeMonthsStress > 0 && target.score.brokeFromBase === null
 
-  const crossing = result.breakeven.crossings[0]
+  // f(r) 非单调时可能有多个穿越点——只有唯一穿越才能给出确定的「临界收益率」结论
+  const crossings = result.breakeven.crossings
+  const crossing = crossings.length === 1 ? crossings[0] : undefined
 
   let verdict: { text: string; color: string }
   if (brokeBase) {
@@ -88,6 +90,13 @@ export function VerdictCard({
             >
               {formatPercent(currentReturn)}
             </b>
+          </span>
+        )}
+        {crossings.length > 1 && (
+          <span className="ml-auto text-xs text-muted-foreground">
+            存在 {crossings.length} 个盈亏平衡点（
+            {crossings.map((c) => formatPercent(c)).join(' / ')}
+            ），结论随当前收益位置而定，详见下图
           </span>
         )}
       </div>

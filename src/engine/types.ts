@@ -237,8 +237,8 @@ export interface GlobalParams {
   emergencyReserve: number;
   /**
    * 月供缺口补足来源：公积金月冲+活钱仍不够付月供时，从哪里继续扣。
-   * - 'cash-only'：不补，活钱透支记资金断裂（缺省）
-   * - 'wealth-proportional'：从全部理财池按余额比例支取
+   * - 'cash-only'：不补，活钱透支记资金断裂（引擎层缺省）
+   * - 'wealth-proportional'：从全部理财池按余额比例支取（应用默认模板采用）
    * - 其他值视为某个理财池 id：只从该池支取
    */
   monthlyTopUpSource: 'cash-only' | 'wealth-proportional' | Id;

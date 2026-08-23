@@ -5,10 +5,11 @@ import type {
   LoanSnap,
   MonthSnap,
   ScenarioDef,
+  SimEvent,
   Warning,
 } from './types'
 import { credit, debit, makeAccountViews, type AccountViews } from './accounts'
-import { expandEvents } from './events'
+import { expandEvents, lastBoundedOccurrence } from './events'
 import {
   applyPeeked,
   initLoanState,
@@ -24,8 +25,11 @@ export const MAX_HORIZON = 600
 
 /**
  * 统一模拟终点 H（总月数）：
- * max(全部贷款按原计划还清所需月数, 退休年偏移, 自定义终点年, 最晚事件发生月+1, 12)
+ * max(全部贷款按原计划还清所需月数, 公积金处理时点+1,
+ *     退休年偏移+12（含退休当年全年）, 自定义终点年偏移+12（含终点当年全年）,
+ *     最晚事件发生月+1, 有界重复事件（count/untilMonth）末次发生月+1, 12)
  * —— 所有方案必须模拟到同一 H 才可比（坑 7/9）。
+ * 无界重复与定投不延伸终点，随 H 截断。
  */
 export function computeHorizonMonths(input: AnalysisInput): number {
   const { global } = input
@@ -41,18 +45,22 @@ export function computeHorizonMonths(input: AnalysisInput): number {
       : null
     h = Math.max(h, (retireM ?? contribEndM) + 1)
   }
-  if (global.retireYear) h = Math.max(h, (global.retireYear - global.startYear) * 12)
-  if (global.endMode === 'custom' && global.customEndYear) {
-    h = Math.max(h, (global.customEndYear - global.startYear) * 12)
+  if (global.retireYear) {
+    h = Math.max(h, (global.retireYear - global.startYear) * 12 + 12)
   }
+  if (global.endMode === 'custom' && global.customEndYear) {
+    h = Math.max(h, (global.customEndYear - global.startYear) * 12 + 12)
+  }
+  const lastEventMonth = (ev: SimEvent): number =>
+    ev.type === 'invest'
+      ? Math.floor(ev.monthIndex / 12) * 12 + ev.monthOfYear
+      : Math.max(ev.monthIndex, lastBoundedOccurrence(ev) ?? ev.monthIndex)
   for (const ev of input.lifeEvents) {
-    const last =
-      ev.type === 'invest' ? Math.floor(ev.monthIndex / 12) * 12 + ev.monthOfYear : ev.monthIndex
-    h = Math.max(h, last + 1)
+    h = Math.max(h, lastEventMonth(ev) + 1)
   }
   for (const sc of input.scenarios) {
     for (const ev of sc.events) {
-      h = Math.max(h, ev.monthIndex + 1)
+      h = Math.max(h, lastEventMonth(ev) + 1)
     }
   }
   return Math.min(Math.max(1, h), MAX_HORIZON)
@@ -107,7 +115,9 @@ export function simulateScenario(
   const runtimes: LoanRuntime[] = input.loans.map((loan) => ({
     loan,
     state: initLoanState(loan),
-    appliedRate: effectiveAnnualRate(loan, 0),
+    // 以合同利率为基准初始化：若第 0 年就有利率规则，首月第①步检测到差异即重锚，
+    // 保证月供与利息始终按同一执行利率摊还
+    appliedRate: loan.currentRate,
     startAt: Math.max(0, loan.startDelayMonths ?? 0),
   }))
   // 人生事件（公共）+ 本方案提前还款，统一展开排序（优先级：收入<支出<还款<定投）
@@ -368,37 +378,50 @@ export function simulateScenario(
       accts.fundBalance *= 1 + input.fund.interestRate / 12
     }
 
-    // ⑪ 公积金余额处理（在可提取时点触发，排在月冲之后避免双重扣款——坑 3）
+    // ⑪ 公积金余额处理（在可提取时点触发，排在月冲之后避免双重扣款——坑 3）。
+    // 到期时点即可提取时点：任何政策下资金都不得凭空消失或被幽灵账户吸收。
     if (
       input.fund &&
       m === fundProcessAtM &&
       accts.fundBalance !== null &&
       accts.fundBalance > 0
     ) {
+      // 结余兜底去向：指定池 > 第一个池；目标池不存在则保留在公积金内继续计息
+      const sweepTargetId =
+        input.fund.withdrawToPoolId ?? [...poolById.keys()][0] ?? null
       switch (input.fund.maturityPolicy) {
         case 'hold':
           break
         case 'lumpPrepay': {
-          const amt = accts.fundBalance
-          if (amt > 0 && activeLoans(m).length > 0) {
+          // 对仍在还的房贷按利率从高到低逐笔冲抵（组合贷无需拆开配置）
+          const housing = activeLoans(m)
+            .filter((r) => r.loan.kind !== 'other')
+            .sort((a, b) => effectiveAnnualRate(b.loan, m) - effectiveAnnualRate(a.loan, m))
+          for (const r of housing) {
+            if ((accts.fundBalance ?? 0) <= 0) break
             executePrepay(
-              amt,
+              accts.fundBalance!,
               input.fund.maturityPrepayEffect,
-              undefined,
+              r.loan.id,
               'fund',
               undefined,
               m,
               true, // 公积金冲抵只作用于房贷
             )
-            if (accts.fundBalance !== null) accts.fundBalance = 0
+          }
+          // 冲抵后结余（无房贷可冲 / 房贷余额小于公积金）转入理财池
+          const leftover = accts.fundBalance ?? 0
+          if (leftover > 0 && sweepTargetId && poolById.has(sweepTargetId)) {
+            credit('wealth', leftover, accts, sweepTargetId)
+            accts.fundBalance = 0
           }
           break
         }
         case 'withdrawToWealth': {
-          const targetId =
-            input.fund.withdrawToPoolId ?? [...poolById.keys()][0] ?? null
-          if (targetId) credit('wealth', accts.fundBalance, accts, targetId)
-          accts.fundBalance = 0
+          if (sweepTargetId && poolById.has(sweepTargetId)) {
+            credit('wealth', accts.fundBalance, accts, sweepTargetId)
+            accts.fundBalance = 0
+          }
           break
         }
       }
