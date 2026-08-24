@@ -117,7 +117,23 @@ export function DashboardPage() {
             <Button variant="ghost" size="sm" onClick={exportJson} title="下载 JSON 备份">
               导出
             </Button>
-            <Button variant="ghost" size="sm" onClick={resetAll} title="清空本地数据并恢复示例">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (!window.confirm('确定重置？将清空 localStorage 中的全部数据并恢复为默认示例。')) {
+                  return
+                }
+                try {
+                  useAppStore.persist.clearStorage()
+                } catch {
+                  /* ignore */
+                }
+                window.localStorage.removeItem('mortgage-analyzer:v1')
+                resetAll()
+              }}
+              title="清空 localStorage 并恢复默认示例"
+            >
               重置
             </Button>
           </div>
@@ -347,6 +363,16 @@ export function DashboardPage() {
 
         <footer className="mt-8 pb-8 text-center text-[11px] text-muted-foreground">
           所有数据仅保存在本机浏览器（localStorage），不上传任何服务器。计算结果为简化模型，仅供参考。
+          <br />
+          开源地址：{' '}
+          <a
+            href="https://github.com/rccoder/Should-I-PrePay"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline decoration-dotted underline-offset-2 hover:text-foreground"
+          >
+            github.com/rccoder/Should-I-PrePay
+          </a>
         </footer>
       </main>
     </div>
