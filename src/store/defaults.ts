@@ -206,23 +206,24 @@ export function makeDefaults(): AppStateData {
       },
       {
         id: makeId(),
-        name: '公积金一次性冲抵',
+        name: '公积金年冲',
         colorSlot: 2,
         isBaseline: false,
         events: [
           {
             id: makeId(),
             type: 'prepay',
-            monthIndex: 0,
-            amount: 150_000,
-            effect: 'reduce-payment',
+            monthIndex: 11,
+            amount: -1, // FUND_BALANCE_AMOUNT
+            effect: 'shorten-term',
             source: 'fund',
+            repeat: { everyYears: 1 },
           },
         ],
       },
       {
         id: makeId(),
-        name: '每年多还20万',
+        name: '现金年冲',
         colorSlot: 3,
         isBaseline: false,
         events: [
@@ -230,11 +231,10 @@ export function makeDefaults(): AppStateData {
             id: makeId(),
             type: 'prepay',
             monthIndex: 11,
-            amount: 200_000,
+            amount: 100_000,
             effect: 'shorten-term',
-            targetGroup: 'housing',
             source: 'cash',
-            repeat: { everyYears: 1, monthOfYear: 12 },
+            repeat: { everyYears: 1 },
           },
         ],
       },

@@ -8,6 +8,7 @@ import type {
   SimEvent,
   Warning,
 } from './types'
+import { FUND_BALANCE_AMOUNT } from './types'
 import { credit, debit, makeAccountViews, type AccountViews } from './accounts'
 import { expandEvents, lastBoundedOccurrence } from './events'
 import {
@@ -509,10 +510,17 @@ export function simulateScenario(
       }
       return
     }
-    if (amount <= 0) return
+
+    // 处理特殊金额值：使用全部公积金余额
+    let actualAmount = amount
+    if (amount === FUND_BALANCE_AMOUNT && source === 'fund' && accts.fundBalance !== null) {
+      actualAmount = Math.max(accts.fundBalance, 0)
+    }
+
+    if (actualAmount <= 0) return
 
     // 银行口径：还款额以当前剩余本金封顶，超出部分不扣（避免吞钱）
-    const capped = Math.min(amount, target.state.balance)
+    const capped = Math.min(actualAmount, target.state.balance)
 
     // 资金来源
     let executed: number

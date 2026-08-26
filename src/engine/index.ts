@@ -89,7 +89,7 @@ export { bandOf, computePeaceScore, coverageMonths, mapScore } from './score'
 export { breakevenScan } from './breakeven'
 export {
   defaultScenarios,
-  presetFundLumpSum,
+  presetFundYearlyPrepay,
+  presetCashYearlyPrepay,
   presetNoPrepay,
-  presetYearEndSweep,
 } from './presets'

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { IntInput, MoneyInput, TextInput } from '@/components/fields/NumberField'
 import { makeId } from '@/engine/ids'
-import { presetFundLumpSum, presetYearEndSweep } from '@/engine/presets'
+import { presetFundYearlyPrepay, presetCashYearlyPrepay } from '@/engine/presets'
 import { initLoanState, peekScheduled } from '@/engine/loan'
 import { formatMoney } from '@/lib/format'
 import type {
@@ -270,11 +270,11 @@ export function ScenarioPrepayEditor() {
     )
   }
 
-  const applyPreset = (preset: 'fund-lump' | 'yearly-sweep') => {
-    if (preset === 'fund-lump') {
-      setScenarioEvents(editable.id, presetFundLumpSum(fund))
+  const applyPreset = (preset: 'fund-yearly' | 'cash-yearly') => {
+    if (preset === 'fund-yearly') {
+      setScenarioEvents(editable.id, presetFundYearlyPrepay())
     } else {
-      setScenarioEvents(editable.id, presetYearEndSweep(200_000))
+      setScenarioEvents(editable.id, presetCashYearlyPrepay(200_000))
     }
   }
 
