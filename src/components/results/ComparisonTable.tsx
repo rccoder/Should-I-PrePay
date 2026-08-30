@@ -1,5 +1,5 @@
-import { Fragment } from 'react'
-import type { AnalysisResult, GlobalParams, ScenarioDef, ScenarioOutcome } from '@/engine/types'
+import { Fragment, type ReactNode } from 'react'
+import type { AnalysisResult, GlobalParams, ScenarioDef, ScenarioOutcome, WealthPool } from '@/engine/types'
 import { SCENARIO_COLORS } from '@/config/chart-theme'
 import { formatMoney, monthIndexToLabel } from '@/lib/format'
 
@@ -7,11 +7,13 @@ import { formatMoney, monthIndexToLabel } from '@/lib/format'
 export function ComparisonTable({
   result,
   scenarios,
+  pools,
   global,
   stress = false,
 }: {
   result: AnalysisResult
   scenarios: Array<Pick<ScenarioDef, 'id' | 'name' | 'colorSlot' | 'events'>>
+  pools: WealthPool[]
   global: GlobalParams
   stress?: boolean
 }) {
@@ -115,6 +117,7 @@ export function ComparisonTable({
             ))}
           </tr>
           {index === 2 && <OpportunityCostGroup result={result} scenarios={scenarios} stress={stress} />}
+          {index === 2 && <AssetCompositionGroup result={result} scenarios={scenarios} pools={pools} stress={stress} />}
           </Fragment>
         ))}
         <tr>
@@ -139,6 +142,15 @@ export function ComparisonTable({
     </div>
     </div>
   )
+}
+
+function AssetCompositionGroup({ result, scenarios, pools, stress }: { result: AnalysisResult; scenarios: Array<Pick<ScenarioDef, 'id' | 'name' | 'colorSlot' | 'events'>>; pools: WealthPool[]; stress: boolean }) {
+  const labels = ['活钱兜底池', '公积金', ...pools.map((pool) => pool.name)]
+  return <tr className="border-b bg-muted/10 align-top"><td className="py-2 pr-4 text-xs"><p className="mb-1 font-medium text-foreground">模拟终点资产构成</p>{labels.map((label) => <p key={label} className="leading-6 text-muted-foreground">{label}</p>)}</td>{scenarios.map((scenario) => { const o=result.outcomes[scenario.id]; const snap=(stress?o?.stress.snaps:o?.base.snaps)?.at(-1); const wealth=Object.values(snap?.pools ?? {}).reduce((a,b)=>a+b,0); const total=(snap?.cash ?? 0)+(snap?.fundBalance ?? 0)+wealth; const line=(value: number, detail?: ReactNode) => <p className="leading-6">{formatMoney(value)} <span className="text-muted-foreground">({ratio(value, total)})</span>{detail && <span className="block pl-2 text-[11px] text-muted-foreground">{detail}</span>}</p>; return <td key={scenario.id} className="py-2 pr-4 font-mono text-[13px] tabular-nums"><div>{line(snap?.cash ?? 0)}{line(snap?.fundBalance ?? 0)}{pools.map((pool) => { const ledger=snap?.poolLedgers?.[pool.id]; const value=snap?.pools?.[pool.id] ?? 0; return <div key={pool.id}>{line(value, <>当前剩余本金 {formatMoney(ledger?.principal ?? 0)} · 当前剩余复利 {formatMoney(ledger?.compoundInterest ?? (value-(ledger?.principal ?? 0)))} · 单利参考 {formatMoney(ledger?.simpleInterest ?? 0)}<br />累计实际定投 {formatMoney(snap?.poolInvested?.[pool.id] ?? 0)} · 累计取出 {formatMoney(ledger?.withdrawn ?? 0)}</>)}</div> })}</div></td>})}</tr>
+}
+
+function ratio(value: number, total: number) {
+  return total > 0 ? `${(value / total * 100).toFixed(1)}%` : '—'
 }
 
 function OpportunityCostGroup({ result, scenarios, stress }: { result: AnalysisResult; scenarios: Array<Pick<ScenarioDef, 'id' | 'name' | 'colorSlot' | 'events'>>; stress: boolean }) {

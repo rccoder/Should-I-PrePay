@@ -178,7 +178,7 @@ export function DashboardPage() {
           <div className="space-y-4 lg:overflow-y-auto lg:pr-2">
             <Card>
               <CardHeader><CardTitle className="text-sm">多方案对比</CardTitle><p className="text-xs text-muted-foreground">比较各方案的成本、期末资产变化、流动性、结论与还清时间；期末资产按统一模拟终点比较。</p></CardHeader>
-              <CardContent className="overflow-x-auto"><ComparisonTable result={result} scenarios={scenarios} global={global} stress={global.stressDrawdownEnabled === true} /></CardContent>
+              <CardContent className="overflow-x-auto"><ComparisonTable result={result} scenarios={scenarios} pools={pools} global={global} stress={global.stressDrawdownEnabled === true} /></CardContent>
             </Card>
             <Card>
               <CardHeader><CardTitle className="text-sm">时间轴 · 关键节点与计划事件</CardTitle><p className="text-xs text-muted-foreground">共同日历在上；每个方案独立显示还款计划、结果转折和风险预警。悬停看原因与时间。</p></CardHeader>

@@ -4,6 +4,7 @@ import type {
   LoanInput,
   LoanSnap,
   MonthSnap,
+  PoolLedgerSnap,
   ScenarioDef,
   SimEvent,
   Warning,
@@ -97,6 +98,15 @@ export function simulateScenario(
   const { global } = input
   const warnings: Warning[] = []
   const snaps: MonthSnap[] = []
+  const poolById = new Map(input.pools.map((p) => [p.id, p]))
+  const poolLedgers: Record<Id, PoolLedgerSnap> = Object.fromEntries(
+    input.pools.map((p) => [p.id, {
+      principal: p.initialBalance,
+      compoundInterest: 0,
+      withdrawn: 0,
+      simpleInterest: 0,
+    }]),
+  )
 
   // ---- 初始账户状态 ----
   const accts: AccountViews = makeAccountViews({
@@ -107,7 +117,9 @@ export function simulateScenario(
   if (input.cash.sweepToPoolId) {
     const target = input.pools.find((p) => p.id === input.cash.sweepToPoolId)
     if (target) {
-      credit('wealth', accts.cash, accts, target.id)
+      const swept = accts.cash
+      credit('wealth', swept, accts, target.id)
+      poolLedgers[target.id]!.principal += swept
       accts.cash = 0
     }
   }
@@ -123,13 +135,14 @@ export function simulateScenario(
   // 人生事件（公共）+ 本方案提前还款，统一展开排序（优先级：收入<支出<还款<定投）
   const expanded = expandEvents([...input.lifeEvents, ...scenario.events], horizon, global.startMonth)
 
-  const poolById = new Map(input.pools.map((p) => [p.id, p]))
   let cumInterest = 0
   let cumPrincipal = 0
   let cumPrepay = 0
   let cumWealthReturn = 0
   let cumInvestPlanned = 0
   let cumInvested = 0
+  const poolInvested: Record<Id, number> = Object.fromEntries(input.pools.map((p) => [p.id, 0]))
+  const poolWithdrawn: Record<Id, number> = Object.fromEntries(input.pools.map((p) => [p.id, 0]))
   let cumFundInterest = 0
   let prevBroken = false
   let prevOffsetShort = false
@@ -140,6 +153,28 @@ export function simulateScenario(
   /** 应急活钱底线：定投与现金类提前还款不得动用（生活/月供/大额支出不受限） */
   const reserve = Math.max(0, input.global.emergencyReserve ?? 0)
   const cashAvailableForPrepay = () => Math.max(accts.cash - reserve, 0)
+
+  function creditPool(amount: number, poolId: Id | undefined): void {
+    if (!poolId || amount <= 0 || !poolById.has(poolId)) return
+    credit('wealth', amount, accts, poolId)
+    poolLedgers[poolId]!.principal += amount
+  }
+
+  function debitPool(amount: number, poolId: Id | undefined): number {
+    if (!poolId || amount <= 0) return 0
+    const actual = debit('wealth', amount, accts, poolId)
+    if (actual <= 0) return 0
+    const ledger = poolLedgers[poolId]!
+    const balanceBefore = actual + (accts.pools.get(poolId) ?? 0)
+    const principalPart = balanceBefore > 0
+      ? Math.min(Math.max(ledger.principal, 0), balanceBefore) * (actual / balanceBefore)
+      : 0
+    ledger.principal = Math.max(0, ledger.principal - principalPart)
+    ledger.compoundInterest -= actual - principalPart
+    ledger.withdrawn += actual
+    poolWithdrawn[poolId] = (poolWithdrawn[poolId] ?? 0) + actual
+    return actual
+  }
 
   // 公积金时间线：缴存进行到「缴存年限结束」与「退休」中较早者；
   // 余额处理（到期政策）在「可提取时点」= 退休年 ?? 缴存结束
@@ -171,6 +206,12 @@ export function simulateScenario(
 
   let m = 0
   while (m < horizon) {
+    // 活钱视为随时可用的兜底理财池，按月计息（不参与压力回撤）。
+    const cashRate = global.cashExpectedAnnualReturn ?? 0
+    const cashInterest = Math.max(accts.cash, 0) * (cashRate / 12)
+    accts.cash += cashInterest
+    cumWealthReturn += cashInterest
+
     // ① 利率更新：与已套用利率不同则重锚（未放款的贷款跳过，放款首月自动重锚）
     for (const r of runtimes) {
       if (m < r.startAt) continue
@@ -263,7 +304,7 @@ export function simulateScenario(
         if (totalWealth > 0) {
           topupTaken = Math.min(shortfallGap, totalWealth)
           for (const [pid, bal] of accts.pools) {
-            accts.pools.set(pid, bal - topupTaken * (bal / totalWealth))
+            debitPool(topupTaken * (bal / totalWealth), pid)
           }
           accts.cash += topupTaken
         }
@@ -271,7 +312,7 @@ export function simulateScenario(
         const bal = accts.pools.get(mode) ?? 0
         topupTaken = Math.min(shortfallGap, bal)
         if (topupTaken > 0) {
-          accts.pools.set(mode, bal - topupTaken)
+          debitPool(topupTaken, mode)
           accts.cash += topupTaken
         }
       }
@@ -302,7 +343,8 @@ export function simulateScenario(
     for (const ev of expanded.get(m) ?? []) {
       switch (ev.type) {
         case 'big-income': {
-          credit(ev.target, ev.amount, accts, ev.wealthPoolId)
+          if (ev.target === 'wealth') creditPool(ev.amount, ev.wealthPoolId)
+          else credit(ev.target, ev.amount, accts, ev.wealthPoolId)
           break
         }
         case 'big-expense': {
@@ -315,7 +357,9 @@ export function simulateScenario(
             })
             break
           }
-          const executed = debit(ev.source, ev.amount, accts, ev.wealthPoolId)
+          const executed = ev.source === 'wealth'
+            ? debitPool(ev.amount, ev.wealthPoolId)
+            : debit(ev.source, ev.amount, accts, ev.wealthPoolId)
           // 大额支出是一次性存量消耗，不计入 monthlyOutgo（跑道口径=经常性燃烧率），
           // 否则首付级别的支出会把当月覆盖月数打成 0，宽心指数失真
           if (executed < ev.amount) {
@@ -345,8 +389,9 @@ export function simulateScenario(
           // 连续失败的各期合并为一个「降挡段」，只在段首报一次预警
           const moved = Math.min(ev.amount, cashAvailableForPrepay())
           cumInvested += moved
+          poolInvested[ev.poolId] = (poolInvested[ev.poolId] ?? 0) + moved
           accts.cash -= moved
-          credit('wealth', moved, accts, ev.poolId)
+          creditPool(moved, ev.poolId)
           const failed = moved < ev.amount
           if (failed && !prevInvestShort) {
             warnings.push({
@@ -379,6 +424,9 @@ export function simulateScenario(
       const r = pool.expectedAnnualReturn
       const gain = balanceAfterDrawdown * (r / 12)
       cumWealthReturn += gain
+      const ledger = poolLedgers[poolId]!
+      ledger.compoundInterest += gain
+      ledger.simpleInterest += Math.max(ledger.principal, 0) * (r / 12)
       accts.pools.set(poolId, balanceAfterDrawdown + gain)
     }
     if (accts.fundBalance !== null && input.fund) {
@@ -421,14 +469,14 @@ export function simulateScenario(
           // 冲抵后结余（无房贷可冲 / 房贷余额小于公积金）转入理财池
           const leftover = accts.fundBalance ?? 0
           if (leftover > 0 && sweepTargetId && poolById.has(sweepTargetId)) {
-            credit('wealth', leftover, accts, sweepTargetId)
+            creditPool(leftover, sweepTargetId)
             accts.fundBalance = 0
           }
           break
         }
         case 'withdrawToWealth': {
           if (sweepTargetId && poolById.has(sweepTargetId)) {
-            credit('wealth', accts.fundBalance, accts, sweepTargetId)
+            creditPool(accts.fundBalance, sweepTargetId)
             accts.fundBalance = 0
           }
           break
@@ -439,6 +487,9 @@ export function simulateScenario(
     // ⑫ 快照（未放款的贷款不计负债、不计月供）
     const poolsSnap: Record<string, number> = {}
     for (const [id, v] of accts.pools) poolsSnap[id] = v
+    const poolLedgersSnap: Record<Id, PoolLedgerSnap> = Object.fromEntries(
+      Object.entries(poolLedgers).map(([id, ledger]) => [id, { ...ledger }]),
+    )
     let loanSum = 0
     const loanSnaps: LoanSnap[] = runtimes.map((r) => {
       const started = m >= r.startAt
@@ -479,6 +530,9 @@ export function simulateScenario(
       cumWealthReturn,
       cumInvestPlanned,
       cumInvested,
+      poolInvested: { ...poolInvested },
+      poolWithdrawn: { ...poolWithdrawn },
+      poolLedgers: poolLedgersSnap,
       cumFundInterest,
       netWorth,
       brokeThisMonth: accts.cash < 0,
@@ -542,7 +596,7 @@ export function simulateScenario(
       executed = Math.min(capped, Math.max(accts.fundBalance, 0))
       accts.fundBalance -= executed
     } else if (source === 'wealth') {
-      executed = debit('wealth', capped, accts, wealthPoolId)
+      executed = debitPool(capped, wealthPoolId)
     } else {
       // 现金来源：不动用应急活钱底线，不足自动降挡
       executed = Math.min(capped, cashAvailableForPrepay())
@@ -563,7 +617,11 @@ export function simulateScenario(
 
     // 违约金从同一来源额外扣收（不冲本金）
     if (target.loan.prepayPenaltyRate) {
-      debit(source, executed * target.loan.prepayPenaltyRate, accts, wealthPoolId)
+      if (source === 'wealth') {
+        debitPool(executed * target.loan.prepayPenaltyRate, wealthPoolId)
+      } else {
+        debit(source, executed * target.loan.prepayPenaltyRate, accts, wealthPoolId)
+      }
     }
 
     const balanceAfter = target.state.balance - executed

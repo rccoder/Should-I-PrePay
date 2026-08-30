@@ -233,6 +233,8 @@ export interface GlobalParams {
   inflationEnabled: boolean;
   /** 默认 0.025；递增锚定模拟起点年 */
   inflationRate: number;
+  /** 活钱兜底池年化收益率，默认 1% */
+  cashExpectedAnnualReturn?: number;
   /** 压力测试：是否启用一次性年度最大回撤 */
   stressDrawdownEnabled?: boolean;
   /** 压力测试回撤发生年份 */
@@ -309,6 +311,14 @@ export interface LoanSnap {
   notStarted: boolean;
 }
 
+/** 理财池在某月月末的资金账本（本金与收益分开记录）。 */
+export interface PoolLedgerSnap {
+  principal: number;
+  compoundInterest: number;
+  withdrawn: number;
+  simpleInterest: number;
+}
+
 export interface MonthSnap {
   m: number;
   loans: LoanSnap[];
@@ -325,6 +335,11 @@ export interface MonthSnap {
   /** 定投计划累计金额与实际投入金额（供解释资金是否挤占定投） */
   cumInvestPlanned?: number;
   cumInvested?: number;
+  /** 各理财池累计实际投入本金 */
+  poolInvested?: Record<Id, number>;
+  /** 各理财池累计实际取出金额 */
+  poolWithdrawn?: Record<Id, number>;
+  poolLedgers?: Record<Id, PoolLedgerSnap>;
   /** 公积金累计计息（供资金路径解释使用） */
   cumFundInterest?: number;
   netWorth: number;
