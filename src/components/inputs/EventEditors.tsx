@@ -57,7 +57,7 @@ function MonthField({
 }
 
 /** 公共人生事件编辑：大额支出 / 大额收入 / 年度定投 */
-export function LifeEventEditor() {
+export function LifeEventEditor({ includeInvest = false }: { includeInvest?: boolean }) {
   const lifeEvents = useAppStore((s) => s.lifeEvents)
   const pools = useAppStore((s) => s.pools)
   const addLifeEvent = useAppStore((s) => s.addLifeEvent)
@@ -106,6 +106,9 @@ export function LifeEventEditor() {
 
   return (
     <div className="space-y-3">
+      <p className="rounded-md bg-muted/60 px-2 py-1.5 text-[11px] leading-relaxed text-muted-foreground">
+        用来登记一次性、会改变未来资金路径的事：例如买房首付、装修、购车、教育、卖房。<b className="text-foreground">第 0 年第 1 月就是模拟起点</b>，默认的「买房首付」因此代表现在/起始年发生。
+      </p>
       <div className="flex gap-1">
         {(
           [
@@ -113,7 +116,7 @@ export function LifeEventEditor() {
             ['income', '大额收入'],
             ['invest', '年度定投'],
           ] as const
-        ).map(([key, label]) => (
+        ).filter(([key]) => includeInvest || key !== 'invest').map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -244,6 +247,33 @@ export function LifeEventEditor() {
       </div>
     </div>
   )
+}
+
+/** 年度定投属于投资策略，而非人生大事；独立放在「投资情况」卡片。 */
+export function InvestmentPlanEditor() {
+  const lifeEvents = useAppStore((s) => s.lifeEvents)
+  const pools = useAppStore((s) => s.pools)
+  const addLifeEvent = useAppStore((s) => s.addLifeEvent)
+  const updateLifeEvent = useAppStore((s) => s.updateLifeEvent)
+  const removeLifeEvent = useAppStore((s) => s.removeLifeEvent)
+  const plans = lifeEvents.filter((event) => event.type === 'invest')
+
+  const addPlan = () => {
+    if (!pools.length) return
+    addLifeEvent({ id: makeId(), type: 'invest', monthIndex: 0, monthOfYear: 12, amount: 100_000, poolId: pools[0]!.id })
+  }
+
+  return <div className="space-y-2 border-t pt-3">
+    <div className="flex items-center justify-between"><span className="text-sm font-medium">年度定投计划</span><Button variant="outline" size="sm" disabled={!pools.length} onClick={addPlan}>+ 年度定投</Button></div>
+    <p className="text-[11px] text-muted-foreground">从活钱按年转入理财池；资金不足时会保留应急金并自动降挡。</p>
+    {plans.length === 0 && <p className="text-xs text-muted-foreground">暂无年度定投计划。</p>}
+    {plans.map((plan) => <div key={plan.id} className="flex flex-wrap items-center gap-2 rounded-lg border p-2.5 text-xs">
+      <span className="text-muted-foreground">每年</span><select value={plan.monthOfYear} onChange={(e) => updateLifeEvent(plan.id, { monthOfYear: Number(e.target.value) })} className={`${selectCls} w-auto`}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}月</option>)}</select>
+      <MoneyInput value={plan.amount} onChange={(v) => updateLifeEvent(plan.id, { amount: v })} className="w-28" />
+      <select value={plan.poolId} onChange={(e) => updateLifeEvent(plan.id, { poolId: e.target.value })} className={`${selectCls} w-auto`}>{pools.map((pool) => <option key={pool.id} value={pool.id}>投入{pool.name}</option>)}</select>
+      <Button variant="ghost" size="sm" className="ml-auto h-7 px-2" onClick={() => removeLifeEvent(plan.id)}>✕</Button>
+    </div>)}
+  </div>
 }
 
 // ---------------------------------------------------------------------------

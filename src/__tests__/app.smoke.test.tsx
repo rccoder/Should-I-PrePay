@@ -18,15 +18,15 @@ afterEach(() => {
 })
 
 describe('App 冒烟', () => {
-  it('渲染标题与六大输入区块、结论卡与图表卡', () => {
+  it('渲染重组后的六大输入区块、结论卡与图表卡', () => {
     render(<App />)
     expect(screen.getByText('该还不还')).toBeTruthy()
     for (const title of [
-      '① 贷款',
-      '② 收入时间线',
-      '③ 支出',
-      '④ 资产账户',
-      '⑤ 人生大事（所有方案共享）',
+      '① 当前资金账户',
+      '② 收入',
+      '③ 投资情况',
+      '④ 支出与人生未来预估',
+      '⑤ 贷款情况',
       '⑥ 提前还款计划（按方案）',
     ]) {
       expect(screen.getByText(title)).toBeTruthy()

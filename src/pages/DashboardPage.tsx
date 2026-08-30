@@ -10,9 +10,15 @@ import {
   ExpenseEditors,
   IncomeSegmentEditor,
 } from '@/components/inputs/IncomeExpenseEditors'
-import { AccountEditors } from '@/components/inputs/AccountEditors'
+import {
+  CurrentFundsEditor,
+  FundIncomeEditor,
+  InvestmentEditor,
+  MortgagePaymentStrategy,
+} from '@/components/inputs/AccountEditors'
 import {
   LifeEventEditor,
+  InvestmentPlanEditor,
   ScenarioPrepayEditor,
 } from '@/components/inputs/EventEditors'
 import { GlobalSettingsFields } from '@/components/inputs/GlobalSettingsCard'
@@ -171,42 +177,52 @@ export function DashboardPage() {
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">① 贷款</CardTitle>
+                <CardTitle className="text-sm">① 当前资金账户</CardTitle>
               </CardHeader>
               <CardContent>
-                <LoanListEditor />
+                <CurrentFundsEditor />
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">② 收入时间线</CardTitle>
+                <CardTitle className="text-sm">② 收入</CardTitle>
               </CardHeader>
               <CardContent>
-                <IncomeSegmentEditor />
+                <div className="space-y-4">
+                  <IncomeSegmentEditor />
+                  <FundIncomeEditor />
+                </div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">③ 支出</CardTitle>
+                <CardTitle className="text-sm">③ 投资情况</CardTitle>
               </CardHeader>
               <CardContent>
-                <ExpenseEditors />
+                <InvestmentEditor />
+                <InvestmentPlanEditor />
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">④ 资产账户</CardTitle>
+                <CardTitle className="text-sm">④ 支出与人生未来预估</CardTitle>
               </CardHeader>
               <CardContent>
-                <AccountEditors result={result} />
+                <div className="space-y-4">
+                  <ExpenseEditors />
+                  <LifeEventEditor />
+                </div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">⑤ 人生大事（所有方案共享）</CardTitle>
+                <CardTitle className="text-sm">⑤ 贷款情况</CardTitle>
               </CardHeader>
               <CardContent>
-                <LifeEventEditor />
+                <div className="space-y-4">
+                  <LoanListEditor />
+                  <MortgagePaymentStrategy result={result} />
+                </div>
               </CardContent>
             </Card>
             <Card>
