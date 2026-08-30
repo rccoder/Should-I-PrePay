@@ -330,6 +330,8 @@ export interface Warning {
   m: number;
   kind: WarningKind;
   detail: string;
+  /** 可量化的当月缺口（如公积金月冲不足），供界面解释资金来源变化 */
+  amount?: number;
 }
 
 /** 宽心指数明细（score 为 0–100 综合分） */

@@ -235,6 +235,7 @@ export function simulateScenario(
       warnings.push({
         m,
         kind: 'offset-shortfall',
+        amount: housingDue - fundOffset,
         detail: `公积金余额不足以全额覆盖房贷月供（本月缺口 ${(housingDue - fundOffset).toFixed(0)} 元），差额已自动改由活钱支付；后续各月同理，直到有新的缴存流入`,
       })
     }

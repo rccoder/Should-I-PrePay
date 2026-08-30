@@ -119,7 +119,7 @@ export function DashboardPage() {
             </p>
             <p>
               <span className="font-medium text-foreground">月冲 + 公积金年冲：</span>
-              在月冲基础上，每年 12 月月冲后，把公积金账户截至当月的全部余额提前还房贷。
+              在月冲基础上，每年 12 月月冲后，把公积金账户截至当月的全部余额提前还房贷；适合月缴存能覆盖房贷、或仍有充足月冲缓冲的情况。
             </p>
             <p>
               <span className="font-medium text-foreground">月冲 + 年冲 + 额外还款：</span>
@@ -198,7 +198,7 @@ export function DashboardPage() {
                 <CardTitle className="text-sm">④ 资产账户</CardTitle>
               </CardHeader>
               <CardContent>
-                <AccountEditors />
+                <AccountEditors result={result} />
               </CardContent>
             </Card>
             <Card>

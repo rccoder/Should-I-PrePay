@@ -1,4 +1,4 @@
-import type { AnalysisResult, GlobalParams, ScenarioOutcome } from '@/engine/types'
+import type { AnalysisResult, GlobalParams, ScenarioDef, ScenarioOutcome } from '@/engine/types'
 import { SCENARIO_COLORS } from '@/config/chart-theme'
 import { formatMoney, monthIndexToLabel } from '@/lib/format'
 
@@ -9,7 +9,7 @@ export function ComparisonTable({
   global,
 }: {
   result: AnalysisResult
-  scenarios: Array<{ id: string; name: string; colorSlot: 1 | 2 | 3 | 4 }>
+  scenarios: Array<Pick<ScenarioDef, 'id' | 'name' | 'colorSlot' | 'events'>>
   global: GlobalParams
 }) {
   const baseline = result.outcomes[result.baselineId]
@@ -60,6 +60,20 @@ export function ComparisonTable({
         if (id === result.baselineId) return `${outcome.score.currentCoverage.toFixed(0)} 个月（基准）`
         return `${baseline.score.currentCoverage.toFixed(0)} → ${outcome.score.currentCoverage.toFixed(0)} 个月`
       },
+    },
+    {
+      label: '月冲状态',
+      render: (id) => {
+        const scenario = scenarios.find((item) => item.id === id)
+        const warning = result.outcomes[id]?.base.warnings.find((item) => item.kind === 'offset-shortfall')
+        if (!warning) return '公积金持续覆盖房贷'
+        const date = monthIndexToLabel(warning.m, global.startYear, global.startMonth)
+        const prefix = scenario?.id !== result.baselineId && scenario?.events.some((event) => event.source === 'fund')
+          ? '年冲后，'
+          : ''
+        return `${prefix}${date}起活钱补${formatMoney(warning.amount ?? 0)}/月`
+      },
+      tone: (id) => result.outcomes[id]?.base.warnings.some((item) => item.kind === 'offset-shortfall') ? 'text-status-severe' : 'text-status-good',
     },
     {
       label: '还清时间',
@@ -139,7 +153,7 @@ export function ComparisonTable({
   )
 }
 
-function PathBreakdown({ result, scenarios }: { result: AnalysisResult; scenarios: Array<{ id: string; name: string; colorSlot: 1 | 2 | 3 | 4 }> }) {
+function PathBreakdown({ result, scenarios }: { result: AnalysisResult; scenarios: Array<Pick<ScenarioDef, 'id' | 'name' | 'colorSlot' | 'events'>> }) {
   const rows = [
     { label: '① 少付贷款利息（提前还贷的好处）', pick: (id: string) => result.outcomes[id]?.metrics.nominalInterestSaving ?? 0 },
     { label: '② 公积金利息变化（机会成本的一部分）', pick: (id: string) => result.outcomes[id]?.metrics.fundInterestDeltaVsBaseline ?? 0 },

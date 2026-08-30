@@ -8,13 +8,16 @@ import {
   TextInput,
 } from '@/components/fields/NumberField'
 import { formatPercent } from '@/lib/format'
+import { formatMoney } from '@/lib/format'
 import { makeId } from '@/engine/ids'
+import { fundAnnualContributionAt } from '@/engine/fund'
+import type { AnalysisResult } from '@/engine/types'
 
 const selectCls =
   'flex h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
 
 /** 资产账户编辑：活钱 / 理财池×N / 公积金 */
-export function AccountEditors() {
+export function AccountEditors({ result }: { result: AnalysisResult }) {
   const cash = useAppStore((s) => s.cash)
   const pools = useAppStore((s) => s.pools)
   const fund = useAppStore((s) => s.fund)
@@ -30,6 +33,7 @@ export function AccountEditors() {
   const setFundAccount = useAppStore((s) => s.setFundAccount)
   const setGlobal = useAppStore((s) => s.setGlobal)
   const fundMonthlyOffset = global.fundMonthlyOffset !== false
+  const loans = useAppStore((s) => s.loans)
 
   // 公积金时间线文案：缴存实际截止于最后一个区间与退休年中较早者。
   const contribEndYear = Math.max(...(fund?.contributionSegments?.map((s) => s.endYear) ?? [global.startYear]))
@@ -41,6 +45,13 @@ export function AccountEditors() {
   const processAtLabel = global.retireYear
     ? `可提取时点：${global.retireYear} 年（退休）——届时余额怎么处理？`
     : '停止缴存后，余额怎么处理？（在「⓪ 全局设置」里填退休年后，将改到退休时处理）'
+  const baselineSnap = result.outcomes[result.baselineId]?.base.snaps[0]
+  const currentFundContribution = fund ? fundAnnualContributionAt(fund, global.startYear) / 12 : 0
+  const currentHousingDue = baselineSnap?.loans
+    .filter((snap) => loans.find((loan) => loan.id === snap.loanId)?.kind !== 'other')
+    .reduce((sum, snap) => sum + snap.scheduledPayment, 0) ?? 0
+  const monthlyFundGap = Math.max(0, currentHousingDue - currentFundContribution)
+  const bufferMonths = monthlyFundGap > 0 && fund ? fund.initialBalance / monthlyFundGap : Infinity
 
   return (
     <div className="space-y-4">
@@ -180,6 +191,20 @@ export function AccountEditors() {
                 ：一直放着计息，到可提取时点（退休年）再按下面的方式处理。
               </li>
             </ol>
+
+            {fundMonthlyOffset && currentHousingDue > 0 && (
+              <div className={`rounded-md border p-2 text-[11px] leading-relaxed ${monthlyFundGap > 0 ? 'border-status-severe/30 bg-status-severe/8' : 'border-status-good/30 bg-status-good/8'}`}>
+                <p className="font-medium text-foreground">公积金月冲缓冲判断</p>
+                <p className="mt-0.5 text-muted-foreground">
+                  每月缴存约 {formatMoney(currentFundContribution)}，当前房贷月供约 {formatMoney(currentHousingDue)}。
+                  {monthlyFundGap > 0 ? (
+                    <> 每月仍差约 <b className="text-status-severe">{formatMoney(monthlyFundGap)}</b>，当前公积金余额是在替未来月供补这个缺口的缓冲垫（约 {Math.floor(bufferMonths)} 个月）。年底全部年冲后，这个缺口会更早改由活钱承担。</>
+                  ) : (
+                    <> 每月可多出约 <b className="text-status-good">{formatMoney(currentFundContribution - currentHousingDue)}</b>，这部分会积累成真正可用于年底年冲的余额，通常不会挤占活钱。</>
+                  )}
+                </p>
+              </div>
+            )}
 
             {/* 房贷月供资金策略 */}
             <div className="space-y-1">

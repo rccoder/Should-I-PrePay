@@ -591,6 +591,7 @@ describe('机会成本口径端到端（runAnalysis）', () => {
     expect(snaps[0]!.cash).toBeCloseTo(20_000 - 2_000 - (M - 2_000), 4)
     // 连续不足只报一次
     expect(warnings.filter((w) => w.kind === 'offset-shortfall')).toHaveLength(1)
+    expect(warnings.find((w) => w.kind === 'offset-shortfall')!.amount).toBeCloseTo(M - 2_000, 4)
   })
 
   it('0% 理财收益 + 12% 高息贷款：立即还清的真实节省≈省下的利息', () => {

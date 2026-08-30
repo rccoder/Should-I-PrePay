@@ -14,7 +14,7 @@ const LIFE_META = {
 const RISK_META: Record<WarningKind, { label: string; color: string }> = {
   broken: { label: '资金断裂', color: STATUS_COLORS.danger },
   'stress-broken': { label: '资金断裂', color: STATUS_COLORS.danger },
-  'offset-shortfall': { label: '公积金月冲不足', color: STATUS_COLORS.severe },
+  'offset-shortfall': { label: '公积金不足 → 活钱补', color: STATUS_COLORS.severe },
   'monthly-topup': { label: '开始花理财', color: STATUS_COLORS.severe },
   'prepay-shortfall': { label: '提前还款降挡', color: STATUS_COLORS.warn },
   'invest-shortfall': { label: '定投降挡', color: STATUS_COLORS.warn },
