@@ -84,10 +84,10 @@ export function TimelineEditor({ horizon, result }: { horizon: number; result: A
       <div className="mt-2 rounded-md border bg-muted/25 px-2 py-1.5">
         <p className="mb-1 text-[11px] font-medium text-muted-foreground">共同日历（所有方案相同）</p>
         <TrackRow label="人生计划" gridStyle={gridStyle}>
-          {lifeEvents.map((event) => (
+          {stackMarkers(lifeEvents).map(({ item: event, stack }) => (
             <PlanMarker key={event.id} m={event.monthIndex} horizon={horizon} color={LIFE_META[event.type].color}
               title={pointTitle(event.type === 'invest' ? `每年定投（${event.monthOfYear}月）` : event.label, event.monthIndex, formatMoney(event.amount))}
-              repeatable={event.type === 'invest'} />
+              repeatable={event.type === 'invest'} stack={stack} />
           ))}
         </TrackRow>
         <TrackRow label="共同转折" gridStyle={gridStyle}>
@@ -104,6 +104,7 @@ export function TimelineEditor({ horizon, result }: { horizon: number; result: A
           return <ScenarioLane key={scenario.id} scenario={scenario} horizon={horizon} gridStyle={gridStyle}
             milestones={(allMilestones[scenario.id] ?? []).filter((m) => !isCommonMilestone(m))}
             baseWarnings={outcome?.base.warnings ?? []} stressWarnings={outcome?.stress.warnings ?? []} pointTitle={pointTitle}
+            lastPayoff={outcome ? Math.max(...Object.values(outcome.metrics.payoffMonthByLoan)) : Infinity}
             active={activeScenarioId === scenario.id}
             onSelect={() => setActiveScenario(activeScenarioId === scenario.id ? null : scenario.id)} />
         })}
@@ -113,13 +114,21 @@ export function TimelineEditor({ horizon, result }: { horizon: number; result: A
   )
 }
 
-function ScenarioLane({ scenario, horizon, gridStyle, milestones, baseWarnings, stressWarnings, pointTitle, active, onSelect }: {
+function ScenarioLane({ scenario, horizon, gridStyle, milestones, baseWarnings, stressWarnings, pointTitle, lastPayoff, active, onSelect }: {
   scenario: ScenarioDef; horizon: number; gridStyle: React.CSSProperties; milestones: Milestone[]
-  baseWarnings: Warning[]; stressWarnings: Warning[]; pointTitle: (label: string, m: number, detail?: string) => string
+  baseWarnings: Warning[]; stressWarnings: Warning[]; pointTitle: (label: string, m: number, detail?: string) => string; lastPayoff: number
   active: boolean; onSelect: () => void
 }) {
   const color = SCENARIO_COLORS[scenario.colorSlot]
   const stressOnly = stressWarnings.filter((warning) => !baseWarnings.some((base) => base.kind === warning.kind && base.m === warning.m))
+  const terminalMonth = [...baseWarnings, ...stressWarnings]
+    .filter((warning) => warning.kind === 'broken' || warning.kind === 'stress-broken')
+    .reduce<number | null>((min, warning) => min === null ? warning.m : Math.min(min, warning.m), null)
+  const eventEnd = terminalMonth === null ? lastPayoff : Math.min(lastPayoff, terminalMonth)
+  const visibleEvents = scenario.events.filter((event) => event.monthIndex <= eventEnd)
+  const visibleMilestones = terminalMonth === null ? milestones : milestones.filter((milestone) => milestone.m <= terminalMonth)
+  const visibleBaseWarnings = terminalMonth === null ? baseWarnings : baseWarnings.filter((warning) => warning.m <= terminalMonth)
+  const visibleStressWarnings = terminalMonth === null ? stressOnly : stressOnly.filter((warning) => warning.m <= terminalMonth)
   return <section
     className={`cursor-pointer rounded-lg border transition-colors hover:bg-accent/30 ${active ? 'bg-accent/40 ring-1 ring-foreground/15' : ''}`}
     style={{ borderLeftWidth: 3, borderLeftColor: color }}
@@ -138,19 +147,20 @@ function ScenarioLane({ scenario, horizon, gridStyle, milestones, baseWarnings, 
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b px-2.5 py-1.5 text-xs">
       <span className="font-medium" style={{ color }}>{scenario.name}</span>
       <span className="text-[10px] text-muted-foreground">预期风险 {baseWarnings.length} · 压力新增 {stressOnly.length}</span>
+      {terminalMonth !== null && <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] text-red-700">模拟于 {pointTitle('资金链断裂', terminalMonth).replace('资金链断裂 · ', '')} 终止：资金链断裂</span>}
     </div>
     <div className="px-2.5 py-1">
       <TrackRow label="还款计划" dotColor={color} gridStyle={gridStyle}>
-        {scenario.events.map((event) => <PlanMarker key={event.id} m={event.monthIndex} horizon={horizon} color={color} repeatable={Boolean(event.repeat)}
+        {stackMarkers(visibleEvents).map(({ item: event, stack }) => <PlanMarker key={event.id} m={event.monthIndex} horizon={horizon} color={color} repeatable={Boolean(event.repeat)} stack={stack}
           title={pointTitle(event.source === 'fund' ? '公积金年冲' : '额外提前还款', event.monthIndex, event.amount < 0 ? '使用公积金账户全部余额' : formatMoney(event.amount))} />)}
       </TrackRow>
       <TrackRow label="结果转折" gridStyle={gridStyle}>
-        {milestones.filter((m) => m.tone === 'good').map((milestone, index) => <MilestoneMarker key={`${milestone.label}-${index}`} m={milestone.m} horizon={horizon} label={milestone.label} title={pointTitle(milestone.label, milestone.m)} />)}
+        {visibleMilestones.filter((m) => m.tone === 'good').map((milestone, index) => <MilestoneMarker key={`${milestone.label}-${index}`} m={milestone.m} horizon={horizon} label={milestone.label} title={pointTitle(milestone.label, milestone.m)} />)}
       </TrackRow>
       <TrackRow label="风险预警" gridStyle={gridStyle}>
-        {baseWarnings.map((warning, index) => <RiskMarker key={`base-${warning.kind}-${index}`} warning={warning} horizon={horizon} title={pointTitle(RISK_META[warning.kind].label, warning.m, warning.detail)} />)}
-        {stressOnly.map((warning, index) => <RiskMarker key={`stress-${warning.kind}-${index}`} warning={warning} horizon={horizon} stress title={pointTitle(`压力：${RISK_META[warning.kind].label}`, warning.m, warning.detail)} />)}
-        {baseWarnings.length === 0 && stressOnly.length === 0 && <EmptyHint text="预期与压力情形均未触发风险" />}
+        {stackMarkers(visibleBaseWarnings).map(({ item: warning, stack }, index) => <RiskMarker key={`base-${warning.kind}-${index}`} warning={warning} horizon={horizon} stack={stack} title={pointTitle(RISK_META[warning.kind].label, warning.m, warning.detail)} />)}
+        {stackMarkers(visibleStressWarnings).map(({ item: warning, stack }, index) => <RiskMarker key={`stress-${warning.kind}-${index}`} warning={warning} horizon={horizon} stress stack={stack} title={pointTitle(`压力：${RISK_META[warning.kind].label}`, warning.m, warning.detail)} />)}
+        {visibleBaseWarnings.length === 0 && visibleStressWarnings.length === 0 && <EmptyHint text="预期与压力情形均未触发风险" />}
       </TrackRow>
     </div>
   </section>
@@ -160,14 +170,24 @@ function TrackRow({ label, dotColor, gridStyle, children }: { label: string; dot
   return <div className="flex items-start gap-2 border-b py-1.5 last:border-b-0"><span className="w-20 shrink-0 pt-0.5 text-[10px] text-muted-foreground">{dotColor && <i className="mr-1 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: dotColor }} />}{label}</span><div className="relative h-7 flex-1 rounded bg-muted/60" style={gridStyle}>{children}</div></div>
 }
 function pct(m: number, horizon: number) { return `${Math.min(99.5, Math.max(0.5, (m / horizon) * 100))}%` }
-function PlanMarker({ m, horizon, color, title, repeatable }: { m: number; horizon: number; color: string; title: string; repeatable?: boolean }) {
-  return <span title={title} aria-label={title} className="absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 cursor-help" style={{ left: pct(m, horizon) }}><i className="block h-3.5 w-3.5 rounded-full border-2 border-background shadow" style={{ backgroundColor: color }} />{repeatable && <i className="absolute -right-1 -top-1 block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />}</span>
+function PlanMarker({ m, horizon, color, title, repeatable, stack = 0 }: { m: number; horizon: number; color: string; title: string; repeatable?: boolean; stack?: number }) {
+  return <span title={title} aria-label={title} className="absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-help" style={{ left: pct(m, horizon), top: `calc(50% + ${stack * 8}px)` }}><i className="block h-3.5 w-3.5 rounded-full border-2 border-background shadow" style={{ backgroundColor: color }} />{repeatable && <i className="absolute -right-1 -top-1 block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />}</span>
 }
 function MilestoneMarker({ m, horizon, label, title }: { m: number; horizon: number; label: string; title: string }) {
   return <span title={title} aria-label={title} className="absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 cursor-help" style={{ left: pct(m, horizon) }}><i className="block h-3 w-3 rotate-45 border border-background shadow" style={{ backgroundColor: STATUS_COLORS.good }} /><span className="absolute left-1/2 top-4 max-w-20 -translate-x-1/2 truncate whitespace-nowrap text-[9px] text-muted-foreground">{label}</span></span>
 }
-function RiskMarker({ warning, horizon, stress, title }: { warning: Warning; horizon: number; stress?: boolean; title: string }) {
+function RiskMarker({ warning, horizon, stress, title, stack = 0 }: { warning: Warning; horizon: number; stress?: boolean; title: string; stack?: number }) {
   const meta = RISK_META[warning.kind]
-  return <span title={title} aria-label={title} className="absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 cursor-help" style={{ left: pct(warning.m, horizon) }}><i className={`block h-3.5 w-3.5 rounded-full shadow ${stress ? 'border-2 bg-background' : 'border-2 border-background'}`} style={{ borderColor: stress ? meta.color : undefined, backgroundColor: stress ? undefined : meta.color }} /><span className="absolute left-1/2 top-4 max-w-24 -translate-x-1/2 truncate whitespace-nowrap text-[9px]" style={{ color: meta.color }}>{meta.label}</span></span>
+  return <span title={title} aria-label={title} className="absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-help" style={{ left: pct(warning.m, horizon), top: `calc(50% + ${stack * 8}px)` }}><i className={`block h-3.5 w-3.5 rounded-full shadow ${stress ? 'border-2 bg-background' : 'border-2 border-background'}`} style={{ borderColor: stress ? meta.color : undefined, backgroundColor: stress ? undefined : meta.color }} /><span className="absolute left-1/2 top-4 max-w-24 -translate-x-1/2 truncate whitespace-nowrap text-[9px]" style={{ color: meta.color }}>{meta.label}</span></span>
 }
 function EmptyHint({ text }: { text: string }) { return <span className="absolute inset-y-0 left-2 flex items-center text-[10px] text-muted-foreground/60">{text}</span> }
+
+function stackMarkers<T extends { monthIndex?: number; m?: number }>(items: T[]): Array<{ item: T; stack: number }> {
+  const seen = new Map<number, number>()
+  return items.map((item) => {
+    const month = item.monthIndex ?? item.m ?? 0
+    const index = seen.get(month) ?? 0
+    seen.set(month, index + 1)
+    return { item, stack: index % 2 === 0 ? Math.ceil(index / 2) : -Math.ceil(index / 2) }
+  })
+}

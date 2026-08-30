@@ -94,7 +94,7 @@ export function GlobalSettingsFields() {
           }
           className={selectCls}
         >
-          <option value="cash-only">不补——活钱透支记资金断裂</option>
+          <option value="cash-only">自动从理财池支取（兼容旧设置）</option>
           <option value="wealth-proportional">理财池按余额比例支取</option>
           {pools.map((p) => (
             <option key={p.id} value={p.id}>

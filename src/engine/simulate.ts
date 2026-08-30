@@ -249,15 +249,15 @@ export function simulateScenario(
     }
     prevOffsetShort = offsetShort
 
-    // ⑤b 刚性支出统一支付：生活+固定+月供合计超过活钱时，按用户策略从理财支取补足。
-    // 每个连续缺口段只报一次预警；策略为 'cash-only' 时不补（活钱透支走断裂检测）。
+    // ⑤b 刚性支出统一支付：生活+固定+月供合计超过活钱时，自动从理财支取补足。
+    // 贷款月供不能跳过；活钱与理财合计仍不足时，记录资金链断裂并终止本方案模拟。
     const selfPaid = totalDue - fundOffset
     const totalNeed = livingAndFixed + selfPaid
     const shortfallGap = totalNeed - Math.max(accts.cash, 0)
     let topupTaken = 0
     if (shortfallGap > 0) {
-      const mode = input.global.monthlyTopUpSource ?? 'cash-only'
-      if (mode === 'wealth-proportional') {
+      const mode = input.global.monthlyTopUpSource ?? 'wealth-proportional'
+      if (mode === 'wealth-proportional' || mode === 'cash-only') {
         const totalWealth = [...accts.pools.values()].reduce((a, b) => a + b, 0)
         if (totalWealth > 0) {
           topupTaken = Math.min(shortfallGap, totalWealth)
@@ -284,8 +284,8 @@ export function simulateScenario(
         detail:
           `${stress ? '压力情形：' : ''}活钱不足以覆盖生活开销与月供（本月缺口 ${shortfallGap.toFixed(0)} 元），` +
           (topupTaken > 0
-            ? `开始动用理财——按「月供缺口补足来源」从理财池支取 ${topupTaken.toFixed(0)} 元补上；后续会继续支取，直到理财耗尽`
-            : '但策略为不补或理财池余额不足——活钱将透支并触发资金断裂'),
+            ? `开始动用理财——从理财池支取 ${topupTaken.toFixed(0)} 元补上；后续会继续支取，直到理财耗尽`
+            : '理财余额也不足，无法覆盖本月刚性支出，将触发资金链断裂'),
       })
     }
     prevTopup = shortfallGap > 0
@@ -485,6 +485,7 @@ export function simulateScenario(
       })
     }
     prevBroken = broken
+    if (broken) break
     m++
   }
 
@@ -504,7 +505,7 @@ export function simulateScenario(
     const housingOnly = source === 'fund' || housingGroup
     const target = resolveTargetLoan(targetLoanId, housingOnly)
     if (!target) {
-      if (housingOnly && amount > 0) {
+      if (housingOnly && amount > 0 && activeLoans(atMonth).some((r) => r.loan.kind !== 'other')) {
         warnings.push({
           m: atMonth,
           kind: 'prepay-shortfall',
