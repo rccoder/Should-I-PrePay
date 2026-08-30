@@ -58,8 +58,8 @@ export function DashboardPage() {
   return (
     <div className="min-h-screen">
       {/* 顶栏 */}
-      <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="mx-auto flex max-w-[1440px] items-center gap-4 px-4 py-3">
+      <header className="sticky top-0 z-10 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="mx-auto flex h-full max-w-[1440px] items-center gap-4 px-4">
           <div>
             <h1 className="text-base font-semibold leading-tight">该还不还</h1>
             <p className="text-[11px] text-muted-foreground">人生现金流与提前还款决策分析</p>
@@ -114,60 +114,25 @@ export function DashboardPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1440px] px-4 py-4">
-        <ScenarioBar />
-
-        <section className="mt-2 rounded-lg border bg-muted/35 px-3 py-2.5">
-          <p className="text-xs font-medium">默认方案怎么读？</p>
-          <div className="mt-2 grid gap-2 text-[11px] leading-relaxed text-muted-foreground md:grid-cols-3">
-            <p>
-              <span className="font-medium text-foreground">只做月冲：</span>
-              每月房贷优先从公积金扣，不足部分再从活钱或按你的设置从理财补；不做提前还款。
-            </p>
-            <p>
-              <span className="font-medium text-foreground">月冲 + 公积金年冲：</span>
-              在月冲基础上，每年 12 月月冲后，把公积金账户截至当月的全部余额提前还房贷；适合月缴存能覆盖房贷、或仍有充足月冲缓冲的情况。
-            </p>
-            <p>
-              <span className="font-medium text-foreground">月冲 + 年冲 + 额外还款：</span>
-              保留公积金年冲，并在每年 12 月额外还一笔房贷；金额、年份、来源都能在下方改。
-            </p>
-          </div>
-        </section>
-
-        <section className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">多方案对比</CardTitle>
-              <p className="text-xs text-muted-foreground">
-                用这一张表比较各方案的成本、机会成本、流动性、结论与还清时间。
-              </p>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <ComparisonTable result={result} scenarios={scenarios} global={global} />
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* 时间轴：关键节点 + 计划事件（纯展示） */}
-        <section className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">时间轴 · 关键节点与计划事件</CardTitle>
-              <p className="text-xs text-muted-foreground">
-                共同日历在上；每个方案独立显示还款计划、结果转折和风险预警。实心风险点代表预期情形，
-                空心风险点代表压力情形。悬停看原因与时间。
-              </p>
-            </CardHeader>
-            <CardContent>
-              <TimelineEditor horizon={result.horizonMonths} result={result} />
-            </CardContent>
-          </Card>
-        </section>
-
-        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[380px_1fr]">
+      <main className="mx-auto max-w-[1440px] px-4 py-4 lg:h-[calc(100vh-4rem)] lg:overflow-hidden">
+        <div className="grid grid-cols-1 gap-4 lg:h-full lg:grid-cols-[400px_minmax(0,1fr)]">
           {/* 左栏：输入 */}
-          <div className="space-y-4 lg:sticky lg:top-16 lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto lg:pr-1">
+          <div className="space-y-4 lg:overflow-y-auto lg:pr-2">
+            <Card>
+              <CardHeader><CardTitle className="text-sm">方案与提前还款</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <ScenarioBar />
+                <section className="rounded-lg border bg-muted/35 px-3 py-2.5">
+                  <p className="text-xs font-medium">默认方案怎么读？</p>
+                  <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                    <p><span className="font-medium text-foreground">只做月冲：</span>每月房贷优先从公积金扣，不足部分再从活钱或按你的设置从理财补；不做提前还款。</p>
+                    <p><span className="font-medium text-foreground">月冲 + 公积金年冲：</span>每年 12 月月冲后，把公积金账户全部余额提前还房贷。</p>
+                    <p><span className="font-medium text-foreground">月冲 + 年冲 + 额外还款：</span>保留公积金年冲，并按设定追加还款。</p>
+                  </div>
+                </section>
+                <ScenarioPrepayEditor />
+              </CardContent>
+            </Card>
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">⓪ 全局设置</CardTitle>
@@ -234,18 +199,18 @@ export function DashboardPage() {
                 </div>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">⑥ 提前还款计划（按方案）</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ScenarioPrepayEditor />
-              </CardContent>
-            </Card>
           </div>
 
           {/* 右侧：图表区 */}
-          <div className="space-y-4">
+          <div className="space-y-4 lg:overflow-y-auto lg:pr-2">
+            <Card>
+              <CardHeader><CardTitle className="text-sm">多方案对比</CardTitle><p className="text-xs text-muted-foreground">比较各方案的成本、机会成本、流动性、结论与还清时间。</p></CardHeader>
+              <CardContent className="overflow-x-auto"><ComparisonTable result={result} scenarios={scenarios} global={global} /></CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle className="text-sm">时间轴 · 关键节点与计划事件</CardTitle><p className="text-xs text-muted-foreground">共同日历在上；每个方案独立显示还款计划、结果转折和风险预警。悬停看原因与时间。</p></CardHeader>
+              <CardContent><TimelineEditor horizon={result.horizonMonths} result={result} /></CardContent>
+            </Card>
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">流动资产（活钱+理财）</CardTitle>
@@ -336,22 +301,16 @@ export function DashboardPage() {
                 </CardContent>
               </Card>
             </div>
+            <footer className="pb-4 text-center text-[11px] text-muted-foreground">
+              所有数据仅保存在本机浏览器（localStorage），不上传任何服务器。计算结果为简化模型，仅供参考。
+              <br />
+              开源地址：{' '}
+              <a href="https://github.com/rccoder/Should-I-PrePay" target="_blank" rel="noopener noreferrer" className="underline decoration-dotted underline-offset-2 hover:text-foreground">
+                github.com/rccoder/Should-I-PrePay
+              </a>
+            </footer>
           </div>
         </div>
-
-        <footer className="mt-8 pb-8 text-center text-[11px] text-muted-foreground">
-          所有数据仅保存在本机浏览器（localStorage），不上传任何服务器。计算结果为简化模型，仅供参考。
-          <br />
-          开源地址：{' '}
-          <a
-            href="https://github.com/rccoder/Should-I-PrePay"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline decoration-dotted underline-offset-2 hover:text-foreground"
-          >
-            github.com/rccoder/Should-I-PrePay
-          </a>
-        </footer>
       </main>
     </div>
   )
