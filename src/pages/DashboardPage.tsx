@@ -18,9 +18,6 @@ import {
 import { GlobalSettingsFields } from '@/components/inputs/GlobalSettingsCard'
 import { ComparisonTable } from '@/components/results/ComparisonTable'
 import { ScenarioBar } from '@/components/results/ScenarioBar'
-import { MetricTiles } from '@/components/results/MetricTiles'
-import { PeaceScoreCard } from '@/components/results/PeaceScoreCard'
-import { VerdictCard } from '@/components/results/VerdictCard'
 import { NetWorthChart } from '@/components/charts/NetWorthChart'
 import { LoanBalanceChart } from '@/components/charts/LoanBalanceChart'
 import { LiquidityChart } from '@/components/charts/LiquidityChart'
@@ -39,24 +36,11 @@ export function DashboardPage() {
   const global = useAppStore((s) => s.global)
   const scenarios = useAppStore((s) => s.scenarios)
   const pools = useAppStore((s) => s.pools)
-  const activeScenarioId = useAppStore((s) => s.activeScenarioId)
   const viewMode = useAppStore((s) => s.viewMode)
   const setViewMode = useAppStore((s) => s.setViewMode)
   const resetAll = useAppStore((s) => s.resetAll)
   const result = useAnalysis()
   const { exportJson, pickAndImport } = useExportImport()
-
-  // 宽心指数卡：基准 + 当前选中方案（缺省第一个非基准）
-  const scoreScenarios = useMemo(() => {
-    const baseline = scenarios.find((x) => x.isBaseline) ?? scenarios[0]
-    const others = scenarios.filter((x) => !x.isBaseline)
-    const focus =
-      (activeScenarioId && others.find((x) => x.id === activeScenarioId)) || others[0]
-    const list = [baseline, ...(focus ? [focus] : [])].filter(
-      (x): x is NonNullable<typeof x> => Boolean(x),
-    )
-    return list
-  }, [scenarios, activeScenarioId])
 
   const currentReturn = useMemo(() => {
     const total = pools.reduce((a, p) => a + p.initialBalance, 0)
@@ -145,28 +129,17 @@ export function DashboardPage() {
         </section>
 
         <section className="mt-4">
-          <MetricTiles result={result} scenarios={scenarios} global={global} />
-        </section>
-
-        <section className="mt-4 space-y-4">
-          <VerdictCard
-            result={result}
-            activeScenarioId={activeScenarioId}
-            pools={pools}
-            scenarioName={(id) => scenarios.find((x) => x.id === id)?.name ?? id}
-          />
-          {scoreScenarios.map((sc) => {
-            const outcome = result.outcomes[sc.id]
-            if (!outcome) return null
-            return (
-              <PeaceScoreCard
-                key={sc.id}
-                name={sc.name}
-                color={`var(--chart-slot-${sc.colorSlot})`}
-                score={outcome.score}
-              />
-            )
-          })}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">多方案对比</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                用这一张表比较各方案的成本、机会成本、流动性、结论与还清时间。
+              </p>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <ComparisonTable result={result} scenarios={scenarios} global={global} />
+            </CardContent>
+          </Card>
         </section>
 
         {/* 时间轴：关键节点 + 计划事件（纯展示） */}
@@ -338,14 +311,6 @@ export function DashboardPage() {
                 </CardContent>
               </Card>
             </div>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">多方案对比</CardTitle>
-              </CardHeader>
-              <CardContent className="overflow-x-auto">
-                <ComparisonTable result={result} scenarios={scenarios} global={global} />
-              </CardContent>
-            </Card>
           </div>
         </div>
 

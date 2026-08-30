@@ -32,7 +32,7 @@ describe('App 冒烟', () => {
       expect(screen.getByText(title)).toBeTruthy()
     }
     // 结果区
-    expect(screen.getByText(/结论 · /)).toBeTruthy()
+    expect(screen.getAllByText('结论').length).toBeGreaterThan(0)
     expect(screen.getAllByText(/宽心指数/).length).toBeGreaterThan(0)
     expect(screen.getAllByText('风险预警').length).toBeGreaterThan(0)
     expect(screen.getAllByText('净资产演化').length).toBeGreaterThan(0)
@@ -45,7 +45,7 @@ describe('App 冒烟', () => {
     render(<App />)
     expect(screen.getAllByText('只做月冲').length).toBeGreaterThan(0)
     expect(screen.getAllByDisplayValue('月冲 + 公积金年冲').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('累计利息').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('真实节省').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('累计支付利息').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('真实节省（含机会成本）').length).toBeGreaterThan(0)
   })
 })

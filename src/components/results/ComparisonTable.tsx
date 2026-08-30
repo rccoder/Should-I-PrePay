@@ -1,4 +1,4 @@
-import type { AnalysisResult, GlobalParams } from '@/engine/types'
+import type { AnalysisResult, GlobalParams, ScenarioOutcome } from '@/engine/types'
 import { SCENARIO_COLORS } from '@/config/chart-theme'
 import { formatMoney, monthIndexToLabel } from '@/lib/format'
 
@@ -12,6 +12,7 @@ export function ComparisonTable({
   scenarios: Array<{ id: string; name: string; colorSlot: 1 | 2 | 3 | 4 }>
   global: GlobalParams
 }) {
+  const baseline = result.outcomes[result.baselineId]
   const rows: Array<{
     label: string
     render: (id: string) => string
@@ -48,8 +49,26 @@ export function ComparisonTable({
       },
     },
     {
+      label: '放弃理财收益',
+      render: (id) => {
+        if (id === result.baselineId) return '—'
+        const metrics = result.outcomes[id]?.metrics
+        return metrics ? formatMoney(Math.max(0, metrics.nominalInterestSaving - metrics.realSavingVsBaseline)) : '—'
+      },
+      tone: (id) => id === result.baselineId ? undefined : 'text-status-severe',
+    },
+    {
       label: '宽心指数',
       render: (id) => String(result.outcomes[id]?.score.score ?? '—'),
+    },
+    {
+      label: '流动性变化',
+      render: (id) => {
+        const outcome = result.outcomes[id]
+        if (!outcome || !baseline) return '—'
+        if (id === result.baselineId) return `${outcome.score.currentCoverage.toFixed(0)} 个月（基准）`
+        return `${baseline.score.currentCoverage.toFixed(0)} → ${outcome.score.currentCoverage.toFixed(0)} 个月`
+      },
     },
     {
       label: '还清时间',
@@ -62,6 +81,11 @@ export function ComparisonTable({
           ? monthIndexToLabel(last, global.startYear, global.startMonth)
           : '模拟期内未还清'
       },
+    },
+    {
+      label: '结论',
+      render: (id) => id === result.baselineId ? '基准' : verdictFor(result.outcomes[id], baseline).text,
+      tone: (id) => id === result.baselineId ? undefined : verdictFor(result.outcomes[id], baseline).tone,
     },
   ]
 
@@ -112,6 +136,18 @@ export function ComparisonTable({
       </tbody>
     </table>
   )
+}
+
+function verdictFor(target: ScenarioOutcome | undefined, baseline: ScenarioOutcome | undefined) {
+  if (!target || !baseline) return { text: '—', tone: undefined }
+  const real = target.metrics.realSavingVsBaseline
+  const brokeBase = target.score.brokeFromBase !== null
+  const brokeStress = target.score.brokeMonthsStress > 0 && !brokeBase
+  if (brokeBase) return { text: '不能这样还', tone: 'text-status-danger' }
+  if (real > 1000 && !brokeStress) return { text: '值得还', tone: 'text-status-good' }
+  if (real > 1000) return { text: '可还，但抗风险变弱', tone: 'text-status-warn' }
+  if (real < -1000) return { text: '不建议还', tone: 'text-status-danger' }
+  return { text: '差别不大', tone: 'text-status-warn' }
 }
 
 const BAND_LABEL: Record<string, string> = {
