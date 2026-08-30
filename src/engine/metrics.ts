@@ -23,6 +23,8 @@ export function summarizeScenario(
     (last?.cumFundInterest ?? 0) - (baselineLast?.cumFundInterest ?? 0)
   const wealthReturnDeltaVsBaseline =
     (last?.cumWealthReturn ?? 0) - (baselineLast?.cumWealthReturn ?? 0)
+  const investPrincipalShortfallVsBaseline =
+    (baselineLast?.cumInvested ?? 0) - (last?.cumInvested ?? 0)
 
   const payoffMonthByLoan: Record<Id, number> = {}
   for (const loan of input.loans) {
@@ -44,6 +46,7 @@ export function summarizeScenario(
     nominalInterestSaving,
     fundInterestDeltaVsBaseline,
     wealthReturnDeltaVsBaseline,
+    investPrincipalShortfallVsBaseline,
     otherAssetPathDelta:
       realSavingVsBaseline - nominalInterestSaving - fundInterestDeltaVsBaseline - wealthReturnDeltaVsBaseline,
   }

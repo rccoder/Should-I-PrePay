@@ -128,6 +128,8 @@ export function simulateScenario(
   let cumPrincipal = 0
   let cumPrepay = 0
   let cumWealthReturn = 0
+  let cumInvestPlanned = 0
+  let cumInvested = 0
   let cumFundInterest = 0
   let prevBroken = false
   let prevOffsetShort = false
@@ -337,9 +339,11 @@ export function simulateScenario(
           break
         }
         case 'invest': {
+          cumInvestPlanned += ev.amount
           // 自动降挡：只动用应急活钱底线之外的部分；不足则按实际金额投入。
           // 连续失败的各期合并为一个「降挡段」，只在段首报一次预警
           const moved = Math.min(ev.amount, cashAvailableForPrepay())
+          cumInvested += moved
           accts.cash -= moved
           credit('wealth', moved, accts, ev.poolId)
           const failed = moved < ev.amount
@@ -463,6 +467,8 @@ export function simulateScenario(
       cumPrepay,
       cumTotalPaid: cumInterest + cumPrincipal + cumPrepay,
       cumWealthReturn,
+      cumInvestPlanned,
+      cumInvested,
       cumFundInterest,
       netWorth,
       brokeThisMonth: accts.cash < 0,

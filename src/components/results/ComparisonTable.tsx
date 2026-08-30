@@ -131,7 +131,7 @@ export function ComparisonTable({
       <p className="font-medium text-foreground">这不是“实际亏损”，而是相对基准的期末资产变化</p>
       <p className="mt-1 leading-relaxed">
         “期末资产变化”= 该方案期末净资产 − 只做月冲方案期末净资产。负数表示在当前模拟终点时，资产比基准少；不代表一次性真的亏掉这笔钱。
-        提前还贷占用的资金如果原本可以继续理财，未来少产生的复利会计入机会成本，所以长期终点下可能大于少付的贷款利息。
+        “实际少投定投本金”只统计定投计划在本方案中确实少执行的金额；理财收益变化则按两个方案真实理财账户的逐月余额计算，长期终点下会受到复利放大。
       </p>
     </div>
     </div>
@@ -143,7 +143,8 @@ function OpportunityCostGroup({ result, scenarios }: { result: AnalysisResult; s
     { label: '期末资产变化（相对基准）', pick: (id: string) => result.outcomes[id]?.metrics.realSavingVsBaseline ?? 0 },
     { label: '少付贷款利息', pick: (id: string) => result.outcomes[id]?.metrics.nominalInterestSaving ?? 0 },
     { label: '公积金利息变化', pick: (id: string) => result.outcomes[id]?.metrics.fundInterestDeltaVsBaseline ?? 0 },
-    { label: '理财收益变化', pick: (id: string) => result.outcomes[id]?.metrics.wealthReturnDeltaVsBaseline ?? 0 },
+    { label: '实际少投定投本金', pick: (id: string) => result.outcomes[id]?.metrics.investPrincipalShortfallVsBaseline ?? 0 },
+    { label: '理财收益变化（实际账户路径）', pick: (id: string) => result.outcomes[id]?.metrics.wealthReturnDeltaVsBaseline ?? 0 },
     { label: '其他现金流差异', pick: (id: string) => result.outcomes[id]?.metrics.otherAssetPathDelta ?? 0 },
   ]
   return <tr className="border-b bg-muted/25 align-top"><td className="py-2 pr-4 text-xs"><p className="mb-1 font-medium text-foreground">收益与机会成本</p>{items.map((item, index) => <p key={item.label} className={`leading-6 ${index === 0 ? 'text-foreground' : 'pl-2 text-muted-foreground'}`}>{index === 0 ? item.label : `↳ ${item.label}`}</p>)}</td>{scenarios.map((scenario) => <td key={scenario.id} className="py-2 pr-4 font-mono text-[13px] tabular-nums">{items.map((item, index) => { const value = item.pick(scenario.id); const baseline = scenario.id === result.baselineId; return <p key={item.label} className={`leading-6 ${index === 0 ? `font-semibold ${baseline ? '' : valueTone(value)}` : baseline ? 'text-muted-foreground' : valueTone(value)}`}>{baseline ? (index === 0 ? '基准' : '—') : formatSigned(value)}</p> })}</td>)}</tr>
