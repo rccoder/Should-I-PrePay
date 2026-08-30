@@ -43,8 +43,8 @@ describe('App 冒烟', () => {
 
   it('默认示例数据下方案与指标可见', () => {
     render(<App />)
-    expect(screen.getAllByText('不提前还款').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('公积金年冲').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('只做月冲').length).toBeGreaterThan(0)
+    expect(screen.getAllByDisplayValue('月冲 + 公积金年冲').length).toBeGreaterThan(0)
     expect(screen.getAllByText('累计利息').length).toBeGreaterThan(0)
     expect(screen.getAllByText('真实节省').length).toBeGreaterThan(0)
   })

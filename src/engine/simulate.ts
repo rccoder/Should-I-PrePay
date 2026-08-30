@@ -20,6 +20,7 @@ import {
   type LoanState,
 } from './loan'
 import { effectiveAnnualRate, monthlyRate } from './rate'
+import { calendarYearAt, fundAnnualContributionAt, fundTimeline } from './fund'
 
 /** 模拟期数硬上限（50 年），防御退化输入 */
 export const MAX_HORIZON = 600
@@ -40,11 +41,7 @@ export function computeHorizonMonths(input: AnalysisInput): number {
   }
   // 公积金余额的处理时点：退休年（领退休金/可提取），未设则=停止缴存时
   if (input.fund) {
-    const contribEndM = input.fund.contributionYears * 12
-    const retireM = global.retireYear
-      ? Math.max(0, (global.retireYear - global.startYear) * 12)
-      : null
-    h = Math.max(h, (retireM ?? contribEndM) + 1)
+    h = Math.max(h, fundTimeline(global, input.fund).processAtM + 1)
   }
   if (global.retireYear) {
     h = Math.max(h, (global.retireYear - global.startYear) * 12 + 12)
@@ -55,7 +52,7 @@ export function computeHorizonMonths(input: AnalysisInput): number {
   const lastEventMonth = (ev: SimEvent): number =>
     ev.type === 'invest'
       ? Math.floor(ev.monthIndex / 12) * 12 + ev.monthOfYear
-      : Math.max(ev.monthIndex, lastBoundedOccurrence(ev) ?? ev.monthIndex)
+      : Math.max(ev.monthIndex, lastBoundedOccurrence(ev, global.startMonth) ?? ev.monthIndex)
   for (const ev of input.lifeEvents) {
     h = Math.max(h, lastEventMonth(ev) + 1)
   }
@@ -122,7 +119,7 @@ export function simulateScenario(
     startAt: Math.max(0, loan.startDelayMonths ?? 0),
   }))
   // 人生事件（公共）+ 本方案提前还款，统一展开排序（优先级：收入<支出<还款<定投）
-  const expanded = expandEvents([...input.lifeEvents, ...scenario.events], horizon)
+  const expanded = expandEvents([...input.lifeEvents, ...scenario.events], horizon, global.startMonth)
 
   const poolById = new Map(input.pools.map((p) => [p.id, p]))
   let cumInterest = 0
@@ -138,24 +135,8 @@ export function simulateScenario(
 
   // 公积金时间线：缴存进行到「缴存年限结束」与「退休」中较早者；
   // 余额处理（到期政策）在「可提取时点」= 退休年 ?? 缴存结束
-  const fundContribUntilM = input.fund
-    ? (() => {
-        const contribEndM = input.fund.contributionYears * 12
-        const retireM = global.retireYear
-          ? Math.max(0, (global.retireYear - global.startYear) * 12)
-          : null
-        return Math.min(contribEndM, retireM ?? contribEndM)
-      })()
-    : 0
-  const fundProcessAtM = input.fund
-    ? (() => {
-        const contribEndM = input.fund.contributionYears * 12
-        const retireM = global.retireYear
-          ? Math.max(0, (global.retireYear - global.startYear) * 12)
-          : null
-        return retireM ?? contribEndM
-      })()
-    : 0
+  const { contribUntilM: fundContribUntilM, processAtM: fundProcessAtM } =
+    fundTimeline(global, input.fund)
 
   const activeLoans = (curM: number) =>
     runtimes.filter((r) => curM >= r.startAt && r.state.balance > 0)
@@ -194,7 +175,7 @@ export function simulateScenario(
 
     // 日历映射
     const calAbs = global.startMonth - 1 + m
-    const calYear = global.startYear + Math.floor(calAbs / 12)
+    const calYear = calendarYearAt(global, m)
     const calMonth = (calAbs % 12) + 1
     const yearIndex = Math.floor(m / 12)
 
@@ -210,7 +191,7 @@ export function simulateScenario(
     }
     // 公积金缴存流入（退休后不再缴存）
     if (input.fund && m < fundContribUntilM) {
-      credit('fund', input.fund.annualContribution / 12, accts)
+      credit('fund', fundAnnualContributionAt(input.fund, calYear) / 12, accts)
     }
 
     // ④ 支出计算（先记账，与月供一起在 ⑤b 统一从活钱支付并触发补足）

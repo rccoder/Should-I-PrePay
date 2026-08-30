@@ -7,6 +7,7 @@ import type {
   BigIncomeEvent,
   FixedExpense,
   FundAccount,
+  FundContributionSegment,
   GlobalParams,
   Id,
   IncomeSegment,
@@ -82,7 +83,8 @@ const prepayEventShape = {
   id: idSchema,
   type: z.literal('prepay'),
   monthIndex: z.number().int().nonnegative(),
-  amount: z.number().nonnegative(),
+  // -1 是「使用全部公积金余额」的内部特殊值。
+  amount: z.union([z.literal(-1), z.number().nonnegative()]),
   effect: z.enum(['shorten-term', 'reduce-payment']),
   targetLoanId: idSchema.optional(),
   /** 'housing' = 作为「还房贷」处理，引擎在房贷内部自动分配 */
@@ -171,8 +173,15 @@ const persistedSchema = z.object({
   fund: z
     .object({
       initialBalance: z.number().nonnegative(),
-      annualContribution: z.number().nonnegative(),
-      contributionYears: z.number().nonnegative(),
+      contributionSegments: z.array(z.object({
+        id: idSchema,
+        startYear: z.number(),
+        endYear: z.number(),
+        annualAmount: z.number().nonnegative(),
+      })).optional(),
+      // 兼容 v1 本地备份；读取时迁移到一段缴存计划。
+      annualContribution: z.number().nonnegative().optional(),
+      contributionYears: z.number().nonnegative().optional(),
       interestRate: z.number().nonnegative(),
       maturityPolicy: z.enum(['hold', 'lumpPrepay', 'withdrawToWealth']),
       maturityPrepayEffect: z.enum(['shorten-term', 'reduce-payment']),
@@ -225,6 +234,9 @@ interface AppActions {
   removePool: (id: Id) => void
 
   updateFund: (patch: Partial<FundAccount>) => void
+  addFundContributionSegment: () => void
+  updateFundContributionSegment: (id: Id, patch: Partial<FundContributionSegment>) => void
+  removeFundContributionSegment: (id: Id) => void
   /** 整体设置（含 null=停用公积金） */
   setFundAccount: (fund: FundAccount | null) => void
 
@@ -253,6 +265,24 @@ interface AppActions {
 export type AppStore = AppStateData & UiState & AppActions
 
 const STORAGE_KEY = 'mortgage-analyzer:v1'
+
+/** 将 v1 的固定缴存字段迁移为按年分段的缴存时间线。 */
+function normalizeFund(
+  fund: z.infer<typeof persistedSchema>['fund'],
+  startYear: number,
+): FundAccount | null {
+  if (!fund) return null
+  const { annualContribution, contributionYears, contributionSegments, ...rest } = fund
+  return {
+    ...rest,
+    contributionSegments: contributionSegments ?? [{
+      id: makeId(),
+      startYear,
+      endYear: startYear + Math.max(0, (contributionYears ?? 0) - 1),
+      annualAmount: annualContribution ?? 0,
+    }],
+  }
+}
 
 function nextColorSlot(scenarios: ScenarioDef[]): 1 | 2 | 3 | 4 {
   const used = new Set(scenarios.map((s) => s.colorSlot))
@@ -417,6 +447,36 @@ export const useAppStore = create<AppStore>()(
       updateFund: (patch) =>
         set((s) => (s.fund ? { fund: { ...s.fund, ...patch } } : {})),
       setFundAccount: (fund) => set({ fund }),
+      addFundContributionSegment: () => set((s) => {
+        if (!s.fund) return {}
+        const segments = s.fund.contributionSegments ?? []
+        const last = segments[segments.length - 1]
+        const startYear = last ? last.endYear + 1 : s.global.startYear
+        return {
+          fund: {
+            ...s.fund,
+            contributionSegments: [
+              ...segments,
+              { id: makeId(), startYear, endYear: startYear + 4, annualAmount: 48_000 },
+            ],
+          },
+        }
+      }),
+      updateFundContributionSegment: (id, patch) => set((s) =>
+        s.fund ? {
+          fund: {
+            ...s.fund,
+            contributionSegments: (s.fund.contributionSegments ?? []).map((segment) =>
+              segment.id === id ? { ...segment, ...patch } : segment,
+            ),
+          },
+        } : {},
+      ),
+      removeFundContributionSegment: (id) => set((s) =>
+        s.fund ? {
+          fund: { ...s.fund, contributionSegments: (s.fund.contributionSegments ?? []).filter((segment) => segment.id !== id) },
+        } : {},
+      ),
 
       // ---- scenarios & events ----
       addScenario: () =>
@@ -504,13 +564,13 @@ export const useAppStore = create<AppStore>()(
       importAll: (raw) => {
         const parsed = persistedSchema.safeParse(raw)
         if (!parsed.success) return false
-        set({ ...parsed.data })
+        set({ ...parsed.data, fund: normalizeFund(parsed.data.fund, parsed.data.global.startYear) })
         return true
       },
     }),
     {
       name: STORAGE_KEY,
-      version: 1,
+      version: 2,
       // 只持久化数据，不持久化 UI 瞬态
       partialize: (s) => ({
         global: s.global,
@@ -530,7 +590,9 @@ export const useAppStore = create<AppStore>()(
           console.warn('[该还不还] 本地数据校验失败，已重置为默认示例', parsed.error.issues.slice(0, 3))
           return current
         }
-        return { ...current, ...parsed.data }
+        // 旧版只有“年缴存额 + 缴存年数”，以当前起点迁移为一条时间线。
+        const fund = normalizeFund(parsed.data.fund, parsed.data.global.startYear)
+        return { ...current, ...parsed.data, fund }
       },
     },
   ),

@@ -5,6 +5,7 @@ import type {
   LoanInput,
   ScenarioOutcome,
 } from './types'
+import { fundTimeline as getFundTimeline } from './fund'
 
 /**
  * 关键节点推导：从模拟结果中提取「活钱见底、开始动用理财、资金断裂、
@@ -25,15 +26,7 @@ export function fundTimeline(
   global: GlobalParams,
   fund: FundAccount | null,
 ): { contribUntilM: number; processAtM: number } {
-  if (!fund) return { contribUntilM: 0, processAtM: 0 }
-  const contribEndM = fund.contributionYears * 12
-  const retireM = global.retireYear
-    ? Math.max(0, (global.retireYear - global.startYear) * 12)
-    : null
-  return {
-    contribUntilM: Math.min(contribEndM, retireM ?? contribEndM),
-    processAtM: retireM ?? contribEndM,
-  }
+  return getFundTimeline(global, fund)
 }
 
 export interface DeriveMilestonesOptions {
@@ -83,7 +76,7 @@ export function deriveMilestones(
 
   // 公积金停止缴存 / 到期处理
   const { contribUntilM, processAtM } = fundTimeline(global, fund)
-  if (fund && fund.annualContribution > 0 && contribUntilM > 0) {
+  if (fund && (fund.contributionSegments?.some((s) => s.annualAmount > 0) ?? (fund.annualContribution ?? 0) > 0) && contribUntilM > 0) {
     milestones.push({ m: contribUntilM, label: '公积金停止缴存', tone: 'info' })
   }
   if (fund && processAtM > 0 && fund.maturityPolicy !== 'hold') {

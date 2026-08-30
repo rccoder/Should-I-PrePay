@@ -8,6 +8,7 @@ import {
   TextInput,
 } from '@/components/fields/NumberField'
 import { formatPercent } from '@/lib/format'
+import { makeId } from '@/engine/ids'
 
 const selectCls =
   'flex h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
@@ -23,13 +24,15 @@ export function AccountEditors() {
   const updatePool = useAppStore((s) => s.updatePool)
   const removePool = useAppStore((s) => s.removePool)
   const updateFund = useAppStore((s) => s.updateFund)
+  const addFundContributionSegment = useAppStore((s) => s.addFundContributionSegment)
+  const updateFundContributionSegment = useAppStore((s) => s.updateFundContributionSegment)
+  const removeFundContributionSegment = useAppStore((s) => s.removeFundContributionSegment)
   const setFundAccount = useAppStore((s) => s.setFundAccount)
   const setGlobal = useAppStore((s) => s.setGlobal)
   const fundMonthlyOffset = global.fundMonthlyOffset !== false
 
-  // 公积金时间线文案：缴存实际截止于「缴存年限」与「退休」中较早者；
-  // 余额处理时点 = 退休年 ?? 缴存结束年（与引擎 simulate 的口径一致）
-  const contribEndYear = (fund?.contributionYears ?? 0) + global.startYear
+  // 公积金时间线文案：缴存实际截止于最后一个区间与退休年中较早者。
+  const contribEndYear = Math.max(...(fund?.contributionSegments?.map((s) => s.endYear) ?? [global.startYear]))
   const effectiveEndYear =
     global.retireYear != null
       ? Math.min(global.retireYear, contribEndYear)
@@ -142,8 +145,9 @@ export function AccountEditors() {
                 if (e.target.checked) {
                   setFundAccount({
                     initialBalance: 50_000,
-                    annualContribution: 48_000,
-                    contributionYears: 20,
+                    contributionSegments: [
+                      { id: makeId(), startYear: global.startYear, endYear: global.startYear + 19, annualAmount: 48_000 },
+                    ],
                     interestRate: 0.015,
                     maturityPolicy: 'withdrawToWealth',
                     maturityPrepayEffect: 'shorten-term',
@@ -212,15 +216,25 @@ export function AccountEditors() {
               <Field label="当前余额">
                 <MoneyInput value={fund.initialBalance} onChange={(v) => updateFund({ initialBalance: v })} />
               </Field>
-              <Field label="每年缴存（个人+单位）">
-                <MoneyInput value={fund.annualContribution} onChange={(v) => updateFund({ annualContribution: v })} />
-              </Field>
-              <Field label={`继续缴存年数${contributeUntilText ? `（到 ${contributeUntilText}）` : ''}`}>
-                <IntInput value={fund.contributionYears} min={0} max={45} onChange={(v) => updateFund({ contributionYears: v })} />
-              </Field>
               <Field label="余额计息利率">
                 <PercentInput value={fund.interestRate} onChange={(v) => updateFund({ interestRate: v })} />
               </Field>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">缴存计划（个人+单位）</span>
+                <Button variant="outline" size="sm" className="h-7" onClick={addFundContributionSegment}>+ 新增阶段</Button>
+              </div>
+              {(fund.contributionSegments ?? []).map((segment) => (
+                <div key={segment.id} className="grid grid-cols-[1fr_1fr_1.4fr_auto] gap-1.5">
+                  <IntInput value={segment.startYear} min={1990} max={2120} onChange={(v) => updateFundContributionSegment(segment.id, { startYear: v })} />
+                  <IntInput value={segment.endYear} min={1990} max={2120} onChange={(v) => updateFundContributionSegment(segment.id, { endYear: v })} />
+                  <MoneyInput value={segment.annualAmount} onChange={(v) => updateFundContributionSegment(segment.id, { annualAmount: v })} />
+                  <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => removeFundContributionSegment(segment.id)}>✕</Button>
+                </div>
+              ))}
+              <p className="text-[11px] text-muted-foreground">每行依次为起始年、结束年、年缴存额；未覆盖的年份视为不再缴存。{contributeUntilText ? ` 当前最晚缴存到 ${contributeUntilText} 年。` : ''}</p>
             </div>
 
             <Field label={processAtLabel}>

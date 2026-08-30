@@ -1,11 +1,6 @@
 import { makeId } from './ids'
 import type { PrepayEffect } from './loan'
-import type {
-  AnalysisInput,
-  FundAccount,
-  PrepayEvent,
-  ScenarioDef,
-} from './types'
+import type { GlobalParams, PrepayEvent, ScenarioDef } from './types'
 import { FUND_BALANCE_AMOUNT } from './types'
 
 /**
@@ -19,15 +14,20 @@ export function presetNoPrepay(): PrepayEvent[] {
 }
 
 /** 公积金年冲：每年年底用全部公积金余额提前还款 */
-export function presetFundYearlyPrepay(): PrepayEvent[] {
+/** 模拟起点所在自然年的 12 月相对月序。 */
+export function yearEndMonthIndex(startMonth = 1): number {
+  return 12 - startMonth
+}
+
+export function presetFundYearlyPrepay(startMonth = 1): PrepayEvent[] {
   const ev: PrepayEvent = {
     id: makeId(),
     type: 'prepay',
-    monthIndex: 11, // 12月（0-based）
+    monthIndex: yearEndMonthIndex(startMonth),
     amount: FUND_BALANCE_AMOUNT,
     effect: 'shorten-term',
     source: 'fund',
-    repeat: { everyYears: 1 },
+    repeat: { everyYears: 1, monthOfYear: 12 },
   }
   return [ev]
 }
@@ -36,43 +36,48 @@ export function presetFundYearlyPrepay(): PrepayEvent[] {
 export function presetCashYearlyPrepay(
   amount: number,
   effect: PrepayEffect = 'shorten-term',
+  startMonth = 1,
 ): PrepayEvent[] {
   if (amount <= 0) return []
   const ev: PrepayEvent = {
     id: makeId(),
     type: 'prepay',
-    monthIndex: 11, // 12月（0-based）
+    monthIndex: yearEndMonthIndex(startMonth),
     amount,
     effect,
+    targetGroup: 'housing',
     source: 'cash',
-    repeat: { everyYears: 1 },
+    repeat: { everyYears: 1, monthOfYear: 12 },
   }
   return [ev]
 }
 
-/** 从当前输入生成默认方案列表：[基准] + 公积金年冲 + 现金年冲 */
-export function defaultScenarios(input: Pick<AnalysisInput, 'fund'>): ScenarioDef[] {
+/** 从当前输入生成默认方案：[月冲] + [月冲+年冲] + [月冲+年冲+额外还款]。 */
+export function defaultScenarios(input: { global: Pick<GlobalParams, 'startMonth'> }): ScenarioDef[] {
   return [
     {
       id: makeId(),
-      name: '不提前还款',
+      name: '只做月冲',
       colorSlot: 1,
       isBaseline: true,
       events: presetNoPrepay(),
     },
     {
       id: makeId(),
-      name: '公积金年冲',
+      name: '月冲 + 公积金年冲',
       colorSlot: 2,
       isBaseline: false,
-      events: presetFundYearlyPrepay(),
+      events: presetFundYearlyPrepay(input.global.startMonth),
     },
     {
       id: makeId(),
-      name: '现金年冲',
+      name: '月冲 + 年冲 + 额外还款',
       colorSlot: 3,
       isBaseline: false,
-      events: presetCashYearlyPrepay(100_000), // 默认每年10万
+      events: [
+        ...presetFundYearlyPrepay(input.global.startMonth),
+        ...presetCashYearlyPrepay(100_000, 'shorten-term', input.global.startMonth),
+      ],
     },
   ]
 }

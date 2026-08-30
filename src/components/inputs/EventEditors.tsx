@@ -254,6 +254,7 @@ export function ScenarioPrepayEditor() {
   const scenarios = useAppStore((s) => s.scenarios)
   const loans = useAppStore((s) => s.loans)
   const fund = useAppStore((s) => s.fund)
+  const startMonth = useAppStore((s) => s.global.startMonth)
   const activeScenarioId = useAppStore((s) => s.activeScenarioId)
   const setActiveScenario = useAppStore((s) => s.setActiveScenario)
   const addEvent = useAppStore((s) => s.addEvent)
@@ -270,11 +271,14 @@ export function ScenarioPrepayEditor() {
     )
   }
 
-  const applyPreset = (preset: 'fund-yearly' | 'cash-yearly') => {
+  const applyPreset = (preset: 'fund-yearly' | 'full-yearly') => {
     if (preset === 'fund-yearly') {
-      setScenarioEvents(editable.id, presetFundYearlyPrepay())
+      setScenarioEvents(editable.id, presetFundYearlyPrepay(startMonth))
     } else {
-      setScenarioEvents(editable.id, presetCashYearlyPrepay(200_000))
+      setScenarioEvents(editable.id, [
+        ...presetFundYearlyPrepay(startMonth),
+        ...presetCashYearlyPrepay(200_000, 'shorten-term', startMonth),
+      ])
     }
   }
 
@@ -316,6 +320,9 @@ export function ScenarioPrepayEditor() {
 
   return (
     <div className="space-y-3">
+      <p className="rounded-md bg-muted/60 px-2 py-1.5 text-[11px] leading-relaxed text-muted-foreground">
+        默认第 3 个方案由「公积金年冲」和「额外还房贷」两条计划组成。可新增多条不同年份和金额的还款段；若要还车贷等其他贷款，在下方对应贷款区块添加即可。
+      </p>
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground">正在编辑</span>
         <select
@@ -393,16 +400,16 @@ export function ScenarioPrepayEditor() {
           variant="secondary"
           size="sm"
           disabled={!fund || fund.initialBalance <= 0}
-          onClick={() => applyPreset('fund-lump')}
-          title="立即用全部公积金余额冲抵房贷"
+          onClick={() => applyPreset('fund-yearly')}
+          title="每年 12 月月冲后，用公积金账户全部剩余余额冲抵房贷"
         >
-          公积金一次性冲抵房贷
+          公积金年冲
         </Button>
         <Button
           variant="secondary"
           size="sm"
-          onClick={() => applyPreset('yearly-sweep')}
-          title="每年年底多还 20 万进房贷（可再手动改区间和金额）"
+          onClick={() => applyPreset('full-yearly')}
+          title="每年 12 月公积金年冲，再额外还 20 万房贷（可再手动改区间和金额）"
         >
           每年多还20万
         </Button>
@@ -461,12 +468,17 @@ function RepaySegmentCard({
   const updateEvent = useAppStore((s) => s.updateEvent)
   const removeEvent = useAppStore((s) => s.removeEvent)
   const pools = useAppStore((s) => s.pools)
+  const startMonth = useAppStore((s) => s.global.startMonth)
 
   const freq = ev.repeat?.everyMonths ? ('m6' as const) : ev.repeat ? ('y1' as const) : ('once' as const)
-  const anchorMonth = ev.repeat?.monthOfYear ?? ((ev.monthIndex % 12) + 1)
-  const startYearRel = Math.floor(ev.monthIndex / 12)
+  const calendarMonthAt = (monthIndex: number) => ((startMonth - 1 + monthIndex) % 12) + 1
+  const calendarYearRelAt = (monthIndex: number) => Math.floor((startMonth - 1 + monthIndex) / 12)
+  const monthIndexAt = (yearRel: number, monthOfYear: number) =>
+    yearRel * 12 + monthOfYear - startMonth
+  const anchorMonth = ev.repeat?.monthOfYear ?? calendarMonthAt(ev.monthIndex)
+  const startYearRel = calendarYearRelAt(ev.monthIndex)
   const untilYearRel =
-    ev.repeat?.untilMonth !== undefined ? Math.floor(ev.repeat.untilMonth / 12) : undefined
+    ev.repeat?.untilMonth !== undefined ? calendarYearRelAt(ev.repeat.untilMonth) : undefined
 
   const setFreq = (v: 'once' | 'y1' | 'm6') => {
     if (v === 'once') {
@@ -479,7 +491,7 @@ function RepaySegmentCard({
   }
   const setAnchorMonthOfYear = (mo: number) => {
     updateEvent(scenarioId, ev.id, {
-      monthIndex: startYearRel * 12 + (mo - 1),
+      monthIndex: monthIndexAt(startYearRel, mo),
       repeat:
         freq === 'y1'
           ? { ...(ev.repeat ?? { everyYears: 1 }), everyYears: 1, monthOfYear: mo }
@@ -488,7 +500,7 @@ function RepaySegmentCard({
   }
   const setStartYearRel = (y: number) => {
     updateEvent(scenarioId, ev.id, {
-      monthIndex: y * 12 + ((freq === 'once' ? ev.monthIndex : anchorMonth - 1) % 12),
+      monthIndex: monthIndexAt(y, freq === 'once' ? calendarMonthAt(ev.monthIndex) : anchorMonth),
     })
   }
   const setUntilYearRel = (y: number) => {
@@ -500,7 +512,7 @@ function RepaySegmentCard({
     }
     if (!ev.repeat) return
     updateEvent(scenarioId, ev.id, {
-      repeat: { ...ev.repeat, untilMonth: y * 12 + (anchorMonth - 1) },
+      repeat: { ...ev.repeat, untilMonth: monthIndexAt(y, anchorMonth) },
     })
   }
 
@@ -521,7 +533,7 @@ function RepaySegmentCard({
           <>
             <span className="text-muted-foreground">在第</span>
             <IntInput
-              value={Math.floor(ev.monthIndex / 12)}
+              value={startYearRel}
               min={0}
               max={50}
               onChange={setStartYearRel}
@@ -529,10 +541,10 @@ function RepaySegmentCard({
             />
             <span className="text-muted-foreground">年</span>
             <select
-              value={(ev.monthIndex % 12) + 1}
+              value={calendarMonthAt(ev.monthIndex)}
               onChange={(e) =>
                 updateEvent(scenarioId, ev.id, {
-                  monthIndex: Math.floor(ev.monthIndex / 12) * 12 + (Number(e.target.value) - 1),
+                  monthIndex: monthIndexAt(startYearRel, Number(e.target.value)),
                 })
               }
               className={`${selectCls} h-7 w-auto`}

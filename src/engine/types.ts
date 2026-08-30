@@ -114,12 +114,22 @@ export type FundMaturityPolicy =
   | 'lumpPrepay' // 一次性冲抵贷款
   | 'withdrawToWealth'; // 取出进理财池
 
+/** 公积金缴存时间线。金额按年填写，引擎在对应日历年内逐月入账。 */
+export interface FundContributionSegment {
+  id: Id;
+  startYear: number;
+  endYear: number;
+  annualAmount: number;
+}
+
 export interface FundAccount {
   initialBalance: number;
-  /** 每年缴存额（个人+单位合计） */
-  annualContribution: number;
-  /** 预计继续缴存年数 */
-  contributionYears: number;
+  /** 公积金缴存计划（个人+单位合计）。区间未覆盖的年份视为不缴存。 */
+  contributionSegments?: FundContributionSegment[];
+  /** @deprecated 仅为兼容旧备份；新数据请使用 contributionSegments。 */
+  annualContribution?: number;
+  /** @deprecated 仅为兼容旧备份；新数据请使用 contributionSegments。 */
+  contributionYears?: number;
   /** 余额计息年利率 */
   interestRate: number;
   maturityPolicy: FundMaturityPolicy;

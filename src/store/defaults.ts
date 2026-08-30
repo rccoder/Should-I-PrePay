@@ -1,4 +1,5 @@
 import { makeId } from '@/engine/ids'
+import { defaultScenarios } from '@/engine/presets'
 import type {
   AnalysisInput,
   FixedExpense,
@@ -185,8 +186,9 @@ export function makeDefaults(): AppStateData {
     ],
     fund: {
       initialBalance: 150_000, // 公积金余额 15w
-      annualContribution: 60_000, // 缴存额未指定，按双边约 5000/月 估计
-      contributionYears: 30, // 缴存到 2050 退休
+      contributionSegments: [
+        { id: makeId(), startYear: 2020, endYear: 2050, annualAmount: 60_000 },
+      ], // 按双边约 5000/月估计，缴存到退休
       interestRate: 0.015,
       maturityPolicy: 'withdrawToWealth', // 退休取出进理财池
       maturityPrepayEffect: 'shorten-term',
@@ -196,49 +198,7 @@ export function makeDefaults(): AppStateData {
 
   return {
     ...data,
-    scenarios: [
-      {
-        id: makeId(),
-        name: '不提前还款',
-        colorSlot: 1,
-        isBaseline: true,
-        events: [],
-      },
-      {
-        id: makeId(),
-        name: '公积金年冲',
-        colorSlot: 2,
-        isBaseline: false,
-        events: [
-          {
-            id: makeId(),
-            type: 'prepay',
-            monthIndex: 11,
-            amount: -1, // FUND_BALANCE_AMOUNT
-            effect: 'shorten-term',
-            source: 'fund',
-            repeat: { everyYears: 1 },
-          },
-        ],
-      },
-      {
-        id: makeId(),
-        name: '现金年冲',
-        colorSlot: 3,
-        isBaseline: false,
-        events: [
-          {
-            id: makeId(),
-            type: 'prepay',
-            monthIndex: 11,
-            amount: 100_000,
-            effect: 'shorten-term',
-            source: 'cash',
-            repeat: { everyYears: 1 },
-          },
-        ],
-      },
-    ],
+    scenarios: defaultScenarios(data),
   }
 }
 

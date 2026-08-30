@@ -41,6 +41,16 @@ describe('expandEvents 事件展开', () => {
     expect([...map.keys()].sort((a, b) => a - b)).toEqual([11, 35, 59])
   })
 
+  it('年度事件在非 1 月起始时仍锚定真实日历月', () => {
+    const ev: PrepayEvent = {
+      id: 'calendar', type: 'prepay', monthIndex: 5, amount: 1,
+      effect: 'shorten-term', source: 'cash',
+      repeat: { everyYears: 1, monthOfYear: 12, count: 2 },
+    }
+    // 7 月起模拟：当年 12 月是 m=5，次年 12 月是 m=17。
+    expect([...expandEvents([ev], 24, 7).keys()]).toEqual([5, 17])
+  })
+
   it('everyMonths 按线性月份重复，untilMonth 截断', () => {
     const ev: PrepayEvent = {
       id: 'd', type: 'prepay', monthIndex: 0, amount: 10_000,

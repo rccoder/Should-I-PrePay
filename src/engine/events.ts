@@ -22,7 +22,7 @@ export const EVENT_PRIORITY: Record<SimEvent['type'], number> = {
  * - 年重复且显式给出 monthOfYear：所有发生（含首次）都吸附到「anchor 年 + i·步长」年的该月
  * - 年重复未给 monthOfYear：首发在原位，后续保持相同年内位置
  */
-function occurrenceMonth(ev: SimEvent, i: number): number | null {
+function occurrenceMonth(ev: SimEvent, i: number, startMonth: number): number | null {
   if (ev.type === 'invest') {
     // 定投：从 monthIndex 所在年起，每年 monthOfYear 月一次
     const anchorYear = Math.floor(ev.monthIndex / 12)
@@ -39,7 +39,9 @@ function occurrenceMonth(ev: SimEvent, i: number): number | null {
     repeat.everyYears && repeat.everyYears > 0 ? repeat.everyYears : 1
   const anchorYear = Math.floor(ev.monthIndex / 12)
   if (repeat.monthOfYear) {
-    return (anchorYear + i * stepYears) * 12 + (repeat.monthOfYear - 1)
+    // monthOfYear 是真实日历月；startMonth 不为 1 时，首个事件仍落在真实的该月。
+    const calendarAnchorYear = Math.floor((startMonth - 1 + ev.monthIndex) / 12)
+    return (calendarAnchorYear + i * stepYears) * 12 + repeat.monthOfYear - startMonth
   }
   return i === 0
     ? ev.monthIndex
@@ -63,7 +65,7 @@ const MAX_OCCURRENCE_SCAN = 100_000
  * 有界重复事件的最后一次发生月；返回 null 表示「不延伸统一终点」：
  * 无重复、无界重复（既无 count 也无 untilMonth）与定投都随终点 H 截断。
  */
-export function lastBoundedOccurrence(ev: SimEvent): number | null {
+export function lastBoundedOccurrence(ev: SimEvent, startMonth = 1): number | null {
   if (ev.type === 'invest') return null
   const repeat = 'repeat' in ev ? ev.repeat : undefined
   if (!repeat) return null
@@ -71,11 +73,11 @@ export function lastBoundedOccurrence(ev: SimEvent): number | null {
   if (count === undefined && untilMonth === undefined) return null
   if (count !== undefined) {
     if (count <= 0) return null
-    return occurrenceMonth(ev, count - 1)
+    return occurrenceMonth(ev, count - 1, startMonth)
   }
   let last: number | null = null
   for (let i = 0; i < MAX_OCCURRENCE_SCAN; i++) {
-    const month = occurrenceMonth(ev, i)
+    const month = occurrenceMonth(ev, i, startMonth)
     if (month === null || month > untilMonth!) break
     last = month
   }
@@ -86,12 +88,12 @@ export function lastBoundedOccurrence(ev: SimEvent): number | null {
  * 展开全部事件 → Map<月序, 事件[]>，同月按执行优先级 + id 稳定排序（坑 7：确定性）。
  * invest 无 repeat 概念，天然每年一次直到终点。
  */
-export function expandEvents(events: SimEvent[], horizon: number): Map<number, SimEvent[]> {
+export function expandEvents(events: SimEvent[], horizon: number, startMonth = 1): Map<number, SimEvent[]> {
   const byMonth = new Map<number, SimEvent[]>()
   for (const ev of events) {
     const cap = occurrenceCap(ev, horizon)
     for (let i = 0; ; i++) {
-      const month = occurrenceMonth(ev, i)
+      const month = occurrenceMonth(ev, i, startMonth)
       if (month === null || !cap(i, month)) break
       let list = byMonth.get(month)
       if (!list) {

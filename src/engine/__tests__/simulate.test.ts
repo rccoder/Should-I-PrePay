@@ -201,6 +201,28 @@ describe('公积金到期三政策', () => {
   })
 })
 
+describe('公积金缴存时间线', () => {
+  it('按年度区间逐月缴存，未覆盖年份不再入账', () => {
+    const input = makeInput({
+      loans: [], incomes: [], living: [], cash: { initialBalance: 0 },
+      fund: {
+        initialBalance: 0,
+        contributionSegments: [
+          { id: 'f-1', startYear: 2026, endYear: 2026, annualAmount: 12_000 },
+          { id: 'f-2', startYear: 2028, endYear: 2028, annualAmount: 24_000 },
+        ],
+        interestRate: 0,
+        maturityPolicy: 'hold',
+        maturityPrepayEffect: 'shorten-term',
+      },
+    })
+    const { snaps } = simulateScenario(input, input.scenarios[0]!, false, 36)
+    expect(snaps[11]!.fundBalance).toBeCloseTo(12_000, 8)
+    expect(snaps[23]!.fundBalance).toBeCloseTo(12_000, 8)
+    expect(snaps[35]!.fundBalance).toBeCloseTo(36_000, 8)
+  })
+})
+
 describe('事件执行', () => {
   it('同月先大额收入后提前还款：还款能看到当月到账的钱', () => {
     // 大额收入是公共人生事件；提前还款属于方案

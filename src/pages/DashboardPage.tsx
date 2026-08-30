@@ -143,6 +143,24 @@ export function DashboardPage() {
       <main className="mx-auto max-w-[1440px] px-4 py-4">
         <ScenarioBar />
 
+        <section className="mt-2 rounded-lg border bg-muted/35 px-3 py-2.5">
+          <p className="text-xs font-medium">默认方案怎么读？</p>
+          <div className="mt-2 grid gap-2 text-[11px] leading-relaxed text-muted-foreground md:grid-cols-3">
+            <p>
+              <span className="font-medium text-foreground">只做月冲：</span>
+              每月房贷优先从公积金扣，不足部分再从活钱或按你的设置从理财补；不做提前还款。
+            </p>
+            <p>
+              <span className="font-medium text-foreground">月冲 + 公积金年冲：</span>
+              在月冲基础上，每年 12 月月冲后，把公积金账户截至当月的全部余额提前还房贷。
+            </p>
+            <p>
+              <span className="font-medium text-foreground">月冲 + 年冲 + 额外还款：</span>
+              保留公积金年冲，并在每年 12 月额外还一笔房贷；金额、年份、来源都能在下方改。
+            </p>
+          </div>
+        </section>
+
         <section className="mt-4">
           <MetricTiles result={result} scenarios={scenarios} global={global} />
         </section>
