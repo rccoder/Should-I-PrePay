@@ -281,6 +281,7 @@ export function InvestmentPlanEditor() {
 // ---------------------------------------------------------------------------
 
 export function ScenarioPrepayEditor() {
+  const [menuOpen, setMenuOpen] = useState(false)
   const scenarios = useAppStore((s) => s.scenarios)
   const loans = useAppStore((s) => s.loans)
   const fund = useAppStore((s) => s.fund)
@@ -289,15 +290,19 @@ export function ScenarioPrepayEditor() {
   const setActiveScenario = useAppStore((s) => s.setActiveScenario)
   const addEvent = useAppStore((s) => s.addEvent)
   const setScenarioEvents = useAppStore((s) => s.setScenarioEvents)
+  const addScenario = useAppStore((s) => s.addScenario)
+  const duplicateScenario = useAppStore((s) => s.duplicateScenario)
+  const removeScenario = useAppStore((s) => s.removeScenario)
+  const renameScenario = useAppStore((s) => s.renameScenario)
 
-  const editable = scenarios.find((x) => x.id === activeScenarioId && !x.isBaseline)
-    ?? scenarios.find((x) => !x.isBaseline)
+  const selected = scenarios.find((x) => x.id === activeScenarioId)
+  const current = selected ?? scenarios.find((x) => !x.isBaseline) ?? scenarios[0]
+  const editable = current?.isBaseline ? undefined : current
+  const selector = current && <div className="flex items-center gap-2"><span className="shrink-0 text-xs text-muted-foreground">正在编辑</span><select value={current.id} onChange={(e) => setActiveScenario(e.target.value)} className={`${selectCls} h-8 flex-1`}>{scenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.name}{scenario.isBaseline ? '（基准）' : ''}</option>)}</select><Button variant="outline" size="sm" className="h-8 px-2" onClick={addScenario} title="新增方案">+</Button>{!current.isBaseline && <div className="relative"><Button variant="outline" size="sm" className="h-8 px-2" onClick={() => setMenuOpen(!menuOpen)} title="更多方案操作">⋯</Button>{menuOpen && <div className="absolute right-0 top-9 z-20 w-24 rounded-md border bg-popover p-1 text-xs shadow-md"><button className="w-full rounded px-2 py-1.5 text-left hover:bg-accent" onClick={() => { duplicateScenario(current.id); setMenuOpen(false) }}>复制方案</button><button className="w-full rounded px-2 py-1.5 text-left hover:bg-accent" onClick={() => { const name = window.prompt('方案名称', current.name); if (name?.trim()) renameScenario(current.id, name.trim()); setMenuOpen(false) }}>改名</button><button className="w-full rounded px-2 py-1.5 text-left text-destructive hover:bg-accent" onClick={() => { setMenuOpen(false); if (window.confirm(`确定删除「${current.name}」吗？此操作无法撤销。`)) { removeScenario(current.id); setActiveScenario(scenarios.find((scenario) => scenario.isBaseline)?.id ?? null) } }}>删除方案</button></div>}</div>}</div>
 
   if (!editable) {
     return (
-      <p className="text-xs text-muted-foreground">
-        先在上方「+ 方案」新建一个提前还款方案，再为它编排还款节奏。
-      </p>
+      <div className="space-y-3">{selector}<p className="text-xs text-muted-foreground">当前是基准方案：只按月供还款，不设置提前还款。切换到其他方案即可编排还款节奏。</p></div>
     )
   }
 
@@ -353,22 +358,7 @@ export function ScenarioPrepayEditor() {
       <p className="rounded-md bg-muted/60 px-2 py-1.5 text-[11px] leading-relaxed text-muted-foreground">
         默认第 3 个方案由「公积金年冲」和「额外还房贷」两条计划组成。可新增多条不同年份和金额的还款段；若要还车贷等其他贷款，在下方对应贷款区块添加即可。
       </p>
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">正在编辑</span>
-        <select
-          value={editable.id}
-          onChange={(e) => setActiveScenario(e.target.value)}
-          className={`${selectCls} h-8 flex-1`}
-        >
-          {scenarios
-            .filter((x) => !x.isBaseline)
-            .map((x) => (
-              <option key={x.id} value={x.id}>
-                {x.name}
-              </option>
-            ))}
-        </select>
-      </div>
+      {selector}
 
       {/* 房贷组：组合贷作为一个整体 */}
       <div className="rounded-lg border p-2.5 space-y-2">

@@ -24,7 +24,6 @@ import {
 } from '@/components/inputs/EventEditors'
 import { GlobalSettingsFields } from '@/components/inputs/GlobalSettingsCard'
 import { ComparisonTable } from '@/components/results/ComparisonTable'
-import { ScenarioBar } from '@/components/results/ScenarioBar'
 import { NetWorthChart } from '@/components/charts/NetWorthChart'
 import { LoanBalanceChart } from '@/components/charts/LoanBalanceChart'
 import { LiquidityChart } from '@/components/charts/LiquidityChart'
@@ -59,7 +58,7 @@ export function DashboardPage() {
     <div className="min-h-screen">
       {/* 顶栏 */}
       <header className="sticky top-0 z-10 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="mx-auto flex h-full max-w-[1440px] items-center gap-4 px-4">
+        <div className="flex h-full w-full items-center gap-4 px-6">
           <div>
             <h1 className="text-base font-semibold leading-tight">该还不还</h1>
             <p className="text-[11px] text-muted-foreground">人生现金流与提前还款决策分析</p>
@@ -114,25 +113,10 @@ export function DashboardPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1440px] px-4 py-4 lg:h-[calc(100vh-4rem)] lg:overflow-hidden">
-        <div className="grid grid-cols-1 gap-4 lg:h-full lg:grid-cols-[400px_minmax(0,1fr)]">
+      <main className="w-full px-6 py-4 lg:h-[calc(100vh-4rem)] lg:overflow-hidden">
+        <div className="grid grid-cols-1 gap-5 lg:h-full lg:grid-cols-[480px_minmax(0,1fr)]">
           {/* 左栏：输入 */}
           <div className="space-y-4 lg:overflow-y-auto lg:pr-2">
-            <Card>
-              <CardHeader><CardTitle className="text-sm">方案与提前还款</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                <ScenarioBar />
-                <section className="rounded-lg border bg-muted/35 px-3 py-2.5">
-                  <p className="text-xs font-medium">默认方案怎么读？</p>
-                  <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
-                    <p><span className="font-medium text-foreground">只做月冲：</span>每月房贷优先从公积金扣，不足部分再从活钱或按你的设置从理财补；不做提前还款。</p>
-                    <p><span className="font-medium text-foreground">月冲 + 公积金年冲：</span>每年 12 月月冲后，把公积金账户全部余额提前还房贷。</p>
-                    <p><span className="font-medium text-foreground">月冲 + 年冲 + 额外还款：</span>保留公积金年冲，并按设定追加还款。</p>
-                  </div>
-                </section>
-                <ScenarioPrepayEditor />
-              </CardContent>
-            </Card>
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">⓪ 全局设置</CardTitle>
@@ -197,6 +181,20 @@ export function DashboardPage() {
                   <LoanListEditor />
                   <MortgagePaymentStrategy result={result} />
                 </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle className="text-sm">⑥ 提前还款计划（按方案）</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <section className="rounded-lg border bg-muted/35 px-3 py-2.5">
+                  <p className="text-xs font-medium">默认方案怎么读？</p>
+                  <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                    <p><span className="font-medium text-foreground">只做月冲：</span>每月房贷优先从公积金扣，不足部分再从活钱或按你的设置从理财补；不做提前还款。</p>
+                    <p><span className="font-medium text-foreground">月冲 + 公积金年冲：</span>每年 12 月月冲后，把公积金账户全部余额提前还房贷。</p>
+                    <p><span className="font-medium text-foreground">月冲 + 年冲 + 额外还款：</span>保留公积金年冲，并按设定追加还款。</p>
+                  </div>
+                </section>
+                <ScenarioPrepayEditor />
               </CardContent>
             </Card>
           </div>

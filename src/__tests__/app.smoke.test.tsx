@@ -27,7 +27,7 @@ describe('App 冒烟', () => {
       '③ 投资情况',
       '④ 支出与人生未来预估',
       '⑤ 贷款情况',
-      '方案与提前还款',
+      '⑥ 提前还款计划（按方案）',
     ]) {
       expect(screen.getByText(title)).toBeTruthy()
     }
