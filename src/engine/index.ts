@@ -37,6 +37,7 @@ export function runAnalysis(
   }
 
   const baselineBase = simulateScenario(input, baseline, false, horizon)
+  const baselineStress = simulateScenario(input, baseline, true, horizon)
 
   const outcomes: Record<Id, ScenarioOutcome> = {}
   for (const sc of scenarios) {
@@ -44,12 +45,13 @@ export function runAnalysis(
       sc.id === baseline.id
         ? baselineBase
         : simulateScenario(input, sc, false, horizon)
-    const stress = simulateScenario(input, sc, true, horizon)
+    const stress = sc.id === baseline.id ? baselineStress : simulateScenario(input, sc, true, horizon)
     outcomes[sc.id] = {
       scenarioId: sc.id,
       base,
       stress,
       metrics: summarizeScenario(input, sc.id, base.snaps, baselineBase.snaps),
+      stressMetrics: summarizeScenario(input, sc.id, stress.snaps, baselineStress.snaps),
       score: computePeaceScore(base.snaps, stress.snaps),
     }
   }

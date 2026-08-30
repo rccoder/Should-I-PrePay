@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useAppStore } from '@/store/useAppStore'
 import { IntInput, MoneyInput } from '@/components/fields/NumberField'
 
@@ -5,10 +6,14 @@ const selectCls =
   'flex h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
 
 /** 全局设置：模拟起点、退休年（领退休金/可取公积金）、模拟终点 */
-export function GlobalSettingsFields() {
+export function GlobalSettingsFields({ maxStressYear }: { maxStressYear?: number }) {
   const global = useAppStore((s) => s.global)
   const pools = useAppStore((s) => s.pools)
   const setGlobal = useAppStore((s) => s.setGlobal)
+  useEffect(() => {
+    if (maxStressYear === undefined || global.stressDrawdownYear === undefined) return
+    if (global.stressDrawdownYear > maxStressYear) setGlobal({ stressDrawdownYear: maxStressYear })
+  }, [global.stressDrawdownYear, maxStressYear, setGlobal])
 
   return (
     <div className="space-y-2.5">
@@ -82,7 +87,7 @@ export function GlobalSettingsFields() {
         </label>
         {global.stressDrawdownEnabled && <label className="block space-y-1">
           <span className="text-[11px] text-muted-foreground">回撤发生年份：{global.stressDrawdownYear ?? global.startYear}</span>
-          <input type="range" min={global.startYear} max={global.startYear + 100} step={1} value={global.stressDrawdownYear ?? global.startYear} onChange={(e) => setGlobal({ stressDrawdownYear: Number(e.target.value) })} className="w-full" />
+          <input type="range" min={global.startYear} max={maxStressYear ?? global.startYear + 100} step={1} value={Math.min(maxStressYear ?? global.startYear + 100, Math.max(global.startYear, global.stressDrawdownYear ?? global.startYear))} onChange={(e) => setGlobal({ stressDrawdownYear: Number(e.target.value) })} className="w-full" />
           <span className="block text-[11px] leading-relaxed text-muted-foreground">该年年初按各理财池的最大回撤扣减一次，之后恢复正常预期收益；不是连续亏损。</span>
         </label>}
       </div>

@@ -396,6 +396,8 @@ export interface ScenarioOutcome {
   base: { snaps: MonthSnap[]; warnings: Warning[] };
   stress: { snaps: MonthSnap[]; warnings: Warning[] };
   metrics: ScenarioMetrics;
+  /** 压力情形下的同口径指标 */
+  stressMetrics: ScenarioMetrics;
   score: PeaceScore;
 }
 

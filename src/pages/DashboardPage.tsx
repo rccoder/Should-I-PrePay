@@ -30,20 +30,10 @@ import { LiquidityChart } from '@/components/charts/LiquidityChart'
 import { CashBalanceChart } from '@/components/charts/CashBalanceChart'
 import { InterestCompareChart } from '@/components/charts/InterestCompareChart'
 import { BreakevenChart } from '@/components/charts/BreakevenChart'
-import type { ViewMode } from '@/store/useAppStore'
-
-const VIEW_MODES: Array<{ key: ViewMode; label: string }> = [
-  { key: 'expected', label: '预期' },
-  { key: 'stress', label: '压力' },
-  { key: 'overlay', label: '叠加' },
-]
-
 export function DashboardPage() {
   const global = useAppStore((s) => s.global)
   const scenarios = useAppStore((s) => s.scenarios)
   const pools = useAppStore((s) => s.pools)
-  const viewMode = useAppStore((s) => s.viewMode)
-  const setViewMode = useAppStore((s) => s.setViewMode)
   const resetAll = useAppStore((s) => s.resetAll)
   const result = useAnalysis()
   const { exportJson, pickAndImport } = useExportImport()
@@ -64,21 +54,6 @@ export function DashboardPage() {
             <p className="text-[11px] text-muted-foreground">人生现金流与提前还款决策分析</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <div className="flex overflow-hidden rounded-md border">
-              {VIEW_MODES.map((m) => (
-                <button
-                  key={m.key}
-                  onClick={() => setViewMode(m.key)}
-                  className={`px-3 py-1.5 text-xs transition-colors ${
-                    viewMode === m.key
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-accent'
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
             <Button
               variant="ghost"
               size="sm"
@@ -122,7 +97,7 @@ export function DashboardPage() {
                 <CardTitle className="text-sm">⓪ 全局设置</CardTitle>
               </CardHeader>
               <CardContent>
-                <GlobalSettingsFields />
+                <GlobalSettingsFields maxStressYear={global.startYear + Math.ceil(result.horizonMonths / 12) - 1} />
               </CardContent>
             </Card>
             <Card>
@@ -203,7 +178,7 @@ export function DashboardPage() {
           <div className="space-y-4 lg:overflow-y-auto lg:pr-2">
             <Card>
               <CardHeader><CardTitle className="text-sm">多方案对比</CardTitle><p className="text-xs text-muted-foreground">比较各方案的成本、期末资产变化、流动性、结论与还清时间；期末资产按统一模拟终点比较。</p></CardHeader>
-              <CardContent className="overflow-x-auto"><ComparisonTable result={result} scenarios={scenarios} global={global} /></CardContent>
+              <CardContent className="overflow-x-auto"><ComparisonTable result={result} scenarios={scenarios} global={global} stress={global.stressDrawdownEnabled === true} /></CardContent>
             </Card>
             <Card>
               <CardHeader><CardTitle className="text-sm">时间轴 · 关键节点与计划事件</CardTitle><p className="text-xs text-muted-foreground">共同日历在上；每个方案独立显示还款计划、结果转折和风险预警。悬停看原因与时间。</p></CardHeader>
@@ -222,7 +197,7 @@ export function DashboardPage() {
                   scenarios={scenarios}
                   startYear={global.startYear}
                   startMonth={global.startMonth}
-                  viewMode={viewMode}
+                  viewMode={global.stressDrawdownEnabled ? 'stress' : 'expected'}
                 />
               </CardContent>
             </Card>
@@ -241,7 +216,7 @@ export function DashboardPage() {
                   scenarios={scenarios}
                   startYear={global.startYear}
                   startMonth={global.startMonth}
-                  viewMode={viewMode}
+                  viewMode={global.stressDrawdownEnabled ? 'stress' : 'expected'}
                 />
               </CardContent>
             </Card>
@@ -259,7 +234,7 @@ export function DashboardPage() {
                   scenarios={scenarios}
                   startYear={global.startYear}
                   startMonth={global.startMonth}
-                  viewMode={viewMode}
+                  viewMode={global.stressDrawdownEnabled ? 'stress' : 'expected'}
                   emergencyReserve={global.emergencyReserve ?? 0}
                 />
               </CardContent>
@@ -274,7 +249,7 @@ export function DashboardPage() {
                   scenarios={scenarios}
                   startYear={global.startYear}
                   startMonth={global.startMonth}
-                  viewMode={viewMode}
+                  viewMode={global.stressDrawdownEnabled ? 'stress' : 'expected'}
                 />
               </CardContent>
             </Card>

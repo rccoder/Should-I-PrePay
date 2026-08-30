@@ -8,12 +8,15 @@ export function ComparisonTable({
   result,
   scenarios,
   global,
+  stress = false,
 }: {
   result: AnalysisResult
   scenarios: Array<Pick<ScenarioDef, 'id' | 'name' | 'colorSlot' | 'events'>>
   global: GlobalParams
+  stress?: boolean
 }) {
   const baseline = result.outcomes[result.baselineId]
+  const metricOf = (id: string) => stress ? result.outcomes[id]?.stressMetrics : result.outcomes[id]?.metrics
   const rows: Array<{
     label: string
     render: (id: string) => string
@@ -21,15 +24,15 @@ export function ComparisonTable({
   }> = [
     {
       label: '累计支付利息',
-      render: (id) => formatMoney(result.outcomes[id]?.metrics.totalInterest ?? NaN),
+      render: (id) => formatMoney(metricOf(id)?.totalInterest ?? NaN),
     },
     {
       label: '总还款额',
-      render: (id) => formatMoney(result.outcomes[id]?.metrics.totalPaid ?? NaN),
+      render: (id) => formatMoney(metricOf(id)?.totalPaid ?? NaN),
     },
     {
       label: '期末净资产',
-      render: (id) => formatMoney(result.outcomes[id]?.metrics.endNetWorth ?? NaN),
+      render: (id) => formatMoney(metricOf(id)?.endNetWorth ?? NaN),
     },
     {
       label: '宽心指数',
@@ -63,7 +66,7 @@ export function ComparisonTable({
       render: (id) => {
         const outcome = result.outcomes[id]
         if (!outcome) return '—'
-        const payoffs = Object.values(outcome.metrics.payoffMonthByLoan)
+        const payoffs = Object.values(metricOf(id)?.payoffMonthByLoan ?? {})
         const last = payoffs.length > 0 ? Math.max(...payoffs) : Infinity
         return Number.isFinite(last)
           ? monthIndexToLabel(last, global.startYear, global.startMonth)
@@ -111,7 +114,7 @@ export function ComparisonTable({
               </td>
             ))}
           </tr>
-          {index === 2 && <OpportunityCostGroup result={result} scenarios={scenarios} />}
+          {index === 2 && <OpportunityCostGroup result={result} scenarios={scenarios} stress={stress} />}
           </Fragment>
         ))}
         <tr>
@@ -138,14 +141,15 @@ export function ComparisonTable({
   )
 }
 
-function OpportunityCostGroup({ result, scenarios }: { result: AnalysisResult; scenarios: Array<Pick<ScenarioDef, 'id' | 'name' | 'colorSlot' | 'events'>> }) {
+function OpportunityCostGroup({ result, scenarios, stress }: { result: AnalysisResult; scenarios: Array<Pick<ScenarioDef, 'id' | 'name' | 'colorSlot' | 'events'>>; stress: boolean }) {
+  const metricOf = (id: string) => stress ? result.outcomes[id]?.stressMetrics : result.outcomes[id]?.metrics
   const items = [
-    { label: '期末资产变化（相对基准）', pick: (id: string) => result.outcomes[id]?.metrics.realSavingVsBaseline ?? 0 },
-    { label: '少付贷款利息', pick: (id: string) => result.outcomes[id]?.metrics.nominalInterestSaving ?? 0 },
-    { label: '公积金利息变化', pick: (id: string) => result.outcomes[id]?.metrics.fundInterestDeltaVsBaseline ?? 0 },
-    { label: '实际少投定投本金', pick: (id: string) => result.outcomes[id]?.metrics.investPrincipalShortfallVsBaseline ?? 0 },
-    { label: '理财收益变化（实际账户路径）', pick: (id: string) => result.outcomes[id]?.metrics.wealthReturnDeltaVsBaseline ?? 0 },
-    { label: '其他现金流差异', pick: (id: string) => result.outcomes[id]?.metrics.otherAssetPathDelta ?? 0 },
+    { label: '期末资产变化（相对基准）', pick: (id: string) => metricOf(id)?.realSavingVsBaseline ?? 0 },
+    { label: '少付贷款利息', pick: (id: string) => metricOf(id)?.nominalInterestSaving ?? 0 },
+    { label: '公积金利息变化', pick: (id: string) => metricOf(id)?.fundInterestDeltaVsBaseline ?? 0 },
+    { label: '实际少投定投本金', pick: (id: string) => metricOf(id)?.investPrincipalShortfallVsBaseline ?? 0 },
+    { label: '理财收益变化（实际账户路径）', pick: (id: string) => metricOf(id)?.wealthReturnDeltaVsBaseline ?? 0 },
+    { label: '其他现金流差异', pick: (id: string) => metricOf(id)?.otherAssetPathDelta ?? 0 },
   ]
   return <tr className="border-b bg-muted/25 align-top"><td className="py-2 pr-4 text-xs"><p className="mb-1 font-medium text-foreground">收益与机会成本</p>{items.map((item, index) => <p key={item.label} className={`leading-6 ${index === 0 ? 'text-foreground' : 'pl-2 text-muted-foreground'}`}>{index === 0 ? item.label : `↳ ${item.label}`}</p>)}</td>{scenarios.map((scenario) => <td key={scenario.id} className="py-2 pr-4 font-mono text-[13px] tabular-nums">{items.map((item, index) => { const value = item.pick(scenario.id); const baseline = scenario.id === result.baselineId; return <p key={item.label} className={`leading-6 ${index === 0 ? `font-semibold ${baseline ? '' : valueTone(value)}` : baseline ? 'text-muted-foreground' : valueTone(value)}`}>{baseline ? (index === 0 ? '基准' : '—') : formatSigned(value)}</p> })}</td>)}</tr>
 }
