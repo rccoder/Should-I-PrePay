@@ -313,6 +313,8 @@ export interface MonthSnap {
   fundBalance: number;
   cumInterest: number;
   cumPrincipal: number;
+  /** 累计提前还款本金（不含正常月供本金） */
+  cumPrepay?: number;
   cumTotalPaid: number;
   /** 理财池累计滚存收益（可为负，供资金路径解释使用） */
   cumWealthReturn?: number;

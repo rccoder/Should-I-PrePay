@@ -13,7 +13,7 @@ import type { BreakevenResult } from '@/engine/types'
 import { CHART_STYLE, SCENARIO_COLORS, STATUS_COLORS } from '@/config/chart-theme'
 import { formatPercent } from '@/lib/format'
 
-/** 盈亏平衡图：x=理财年化收益率，y=真实节省；标临界点与当前预期位置 */
+/** 盈亏平衡图：x=理财年化收益率，y=期末资产变化；标临界点与当前预期位置 */
 export function BreakevenChart({
   breakeven,
   currentReturn,
@@ -63,7 +63,7 @@ export function BreakevenChart({
         />
         <Line
           dataKey="saving"
-          name="真实节省"
+          name="期末资产变化"
           stroke={activeColor}
           strokeWidth={CHART_STYLE.lineWidth}
           dot={false}

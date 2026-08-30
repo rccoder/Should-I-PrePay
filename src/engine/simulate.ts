@@ -126,6 +126,7 @@ export function simulateScenario(
   const poolById = new Map(input.pools.map((p) => [p.id, p]))
   let cumInterest = 0
   let cumPrincipal = 0
+  let cumPrepay = 0
   let cumWealthReturn = 0
   let cumFundInterest = 0
   let prevBroken = false
@@ -459,7 +460,8 @@ export function simulateScenario(
       fundBalance: accts.fundBalance ?? 0,
       cumInterest,
       cumPrincipal,
-      cumTotalPaid: cumInterest + cumPrincipal,
+      cumPrepay,
+      cumTotalPaid: cumInterest + cumPrincipal + cumPrepay,
       cumWealthReturn,
       cumFundInterest,
       netWorth,
@@ -539,6 +541,8 @@ export function simulateScenario(
       })
     }
     if (executed <= 0) return
+
+    cumPrepay += executed
 
     // 违约金从同一来源额外扣收（不冲本金）
     if (target.loan.prepayPenaltyRate) {

@@ -3,7 +3,7 @@ import type { GlobalParams, Id } from '@/engine/types'
 import { SCENARIO_COLORS } from '@/config/chart-theme'
 import { formatMoney, monthIndexToLabel } from '@/lib/format'
 
-/** 每方案一列指标卡：总利息 / 期末净资产 / 真实节省 / 名义少付利息 / 还清时间 */
+/** 每方案一列指标卡：总利息 / 期末净资产 / 期末资产变化 / 名义少付利息 / 还清时间 */
 export function MetricTiles({
   result,
   scenarios,
@@ -52,12 +52,12 @@ export function MetricTiles({
               {!isBaseline && (
                 <>
                   <Row
-                    label="真实节省"
+                    label="期末资产变化"
                     value={formatMoney(saving)}
                     className={
                       saving > 0 ? 'text-status-good' : saving < 0 ? 'text-status-danger' : undefined
                     }
-                    hint="含机会成本口径"
+                    hint="相对基准方案的期末净资产差额；不是实际多付/少付的钱"
                   />
                   <Row
                     label="名义少付利息"

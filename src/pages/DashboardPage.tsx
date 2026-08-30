@@ -202,7 +202,7 @@ export function DashboardPage() {
           {/* 右侧：图表区 */}
           <div className="space-y-4 lg:overflow-y-auto lg:pr-2">
             <Card>
-              <CardHeader><CardTitle className="text-sm">多方案对比</CardTitle><p className="text-xs text-muted-foreground">比较各方案的成本、机会成本、流动性、结论与还清时间。</p></CardHeader>
+              <CardHeader><CardTitle className="text-sm">多方案对比</CardTitle><p className="text-xs text-muted-foreground">比较各方案的成本、期末资产变化、流动性、结论与还清时间；期末资产按统一模拟终点比较。</p></CardHeader>
               <CardContent className="overflow-x-auto"><ComparisonTable result={result} scenarios={scenarios} global={global} /></CardContent>
             </Card>
             <Card>

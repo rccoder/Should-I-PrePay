@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import type { AnalysisResult, GlobalParams, ScenarioDef, ScenarioOutcome } from '@/engine/types'
 import { SCENARIO_COLORS } from '@/config/chart-theme'
 import { formatMoney, monthIndexToLabel } from '@/lib/format'
@@ -29,24 +30,6 @@ export function ComparisonTable({
     {
       label: '期末净资产',
       render: (id) => formatMoney(result.outcomes[id]?.metrics.endNetWorth ?? NaN),
-    },
-    {
-      label: '最终多赚/少赚（含机会成本）',
-      render: (id) => {
-        const v = result.outcomes[id]?.metrics.realSavingVsBaseline
-        return id === result.baselineId ? '基准' : formatMoney(v ?? NaN)
-      },
-      tone: (id) => {
-        const v = result.outcomes[id]?.metrics.realSavingVsBaseline ?? 0
-        return v > 0 ? 'text-status-good' : v < 0 ? 'text-status-danger' : undefined
-      },
-    },
-    {
-      label: '名义少付利息',
-      render: (id) => {
-        const v = result.outcomes[id]?.metrics.nominalInterestSaving
-        return id === result.baselineId ? '—' : formatMoney(v ?? NaN)
-      },
     },
     {
       label: '宽心指数',
@@ -115,8 +98,9 @@ export function ComparisonTable({
         </tr>
       </thead>
       <tbody>
-        {rows.map((row) => (
-          <tr key={row.label} className="border-b last:border-0">
+        {rows.map((row, index) => (
+          <Fragment key={row.label}>
+          <tr className="border-b last:border-0">
             <td className="py-2 pr-4 text-xs text-muted-foreground">{row.label}</td>
             {scenarios.map((sc) => (
               <td
@@ -127,6 +111,8 @@ export function ComparisonTable({
               </td>
             ))}
           </tr>
+          {index === 2 && <OpportunityCostGroup result={result} scenarios={scenarios} />}
+          </Fragment>
         ))}
         <tr>
           <td className="py-2 pr-4 text-xs text-muted-foreground">宽心指数带位</td>
@@ -142,30 +128,33 @@ export function ComparisonTable({
       </tbody>
     </table>
     <div className="rounded-md bg-muted/45 px-3 py-2 text-xs text-muted-foreground">
-      <p className="font-medium text-foreground">“含机会成本”到底是什么？</p>
+      <p className="font-medium text-foreground">这不是“实际亏损”，而是相对基准的期末资产变化</p>
       <p className="mt-1 leading-relaxed">
-        它不是额外扣掉的一笔钱。提前还贷后，原来会继续留在公积金账户或理财账户里的钱，未来少产生的收益，就是机会成本。
-        所以最终多赚/少赚 = 少付贷款利息 + 公积金利息变化 + 理财收益变化 + 其他差异。
+        “期末资产变化”= 该方案期末净资产 − 只做月冲方案期末净资产。负数表示在当前模拟终点时，资产比基准少；不代表一次性真的亏掉这笔钱。
+        提前还贷占用的资金如果原本可以继续理财，未来少产生的复利会计入机会成本，所以长期终点下可能大于少付的贷款利息。
       </p>
-      <PathBreakdown result={result} scenarios={scenarios} />
     </div>
     </div>
   )
 }
 
-function PathBreakdown({ result, scenarios }: { result: AnalysisResult; scenarios: Array<Pick<ScenarioDef, 'id' | 'name' | 'colorSlot' | 'events'>> }) {
-  const rows = [
-    { label: '① 少付贷款利息（提前还贷的好处）', pick: (id: string) => result.outcomes[id]?.metrics.nominalInterestSaving ?? 0 },
-    { label: '② 公积金利息变化（机会成本的一部分）', pick: (id: string) => result.outcomes[id]?.metrics.fundInterestDeltaVsBaseline ?? 0 },
-    { label: '③ 理财收益变化（机会成本的一部分）', pick: (id: string) => result.outcomes[id]?.metrics.wealthReturnDeltaVsBaseline ?? 0 },
-    { label: '④ 其他现金流差异（如计划未全额执行）', pick: (id: string) => result.outcomes[id]?.metrics.otherAssetPathDelta ?? 0 },
-    { label: '= 最终多赚/少赚（含机会成本）', pick: (id: string) => result.outcomes[id]?.metrics.realSavingVsBaseline ?? 0 },
+function OpportunityCostGroup({ result, scenarios }: { result: AnalysisResult; scenarios: Array<Pick<ScenarioDef, 'id' | 'name' | 'colorSlot' | 'events'>> }) {
+  const items = [
+    { label: '期末资产变化（相对基准）', pick: (id: string) => result.outcomes[id]?.metrics.realSavingVsBaseline ?? 0 },
+    { label: '少付贷款利息', pick: (id: string) => result.outcomes[id]?.metrics.nominalInterestSaving ?? 0 },
+    { label: '公积金利息变化', pick: (id: string) => result.outcomes[id]?.metrics.fundInterestDeltaVsBaseline ?? 0 },
+    { label: '理财收益变化', pick: (id: string) => result.outcomes[id]?.metrics.wealthReturnDeltaVsBaseline ?? 0 },
+    { label: '其他现金流差异', pick: (id: string) => result.outcomes[id]?.metrics.otherAssetPathDelta ?? 0 },
   ]
-  return <div className="mt-2 overflow-x-auto"><table className="w-full min-w-[640px] text-[11px]"><thead><tr className="border-b"><th className="py-1.5 text-left font-normal">怎么算</th>{scenarios.map((scenario) => <th key={scenario.id} className="py-1.5 text-left font-normal">{scenario.name}</th>)}</tr></thead><tbody>{rows.map((row) => <tr key={row.label} className="border-b last:border-0"><td className="py-1.5">{row.label}</td>{scenarios.map((scenario) => <td key={scenario.id} className="py-1.5 font-mono tabular-nums">{scenario.id === result.baselineId ? '基准' : formatSigned(row.pick(scenario.id))}</td>)}</tr>)}</tbody></table></div>
+  return <tr className="border-b bg-muted/25 align-top"><td className="py-2 pr-4 text-xs"><p className="mb-1 font-medium text-foreground">收益与机会成本</p>{items.map((item, index) => <p key={item.label} className={`leading-6 ${index === 0 ? 'text-foreground' : 'pl-2 text-muted-foreground'}`}>{index === 0 ? item.label : `↳ ${item.label}`}</p>)}</td>{scenarios.map((scenario) => <td key={scenario.id} className="py-2 pr-4 font-mono text-[13px] tabular-nums">{items.map((item, index) => { const value = item.pick(scenario.id); const baseline = scenario.id === result.baselineId; return <p key={item.label} className={`leading-6 ${index === 0 ? `font-semibold ${baseline ? '' : valueTone(value)}` : baseline ? 'text-muted-foreground' : valueTone(value)}`}>{baseline ? (index === 0 ? '基准' : '—') : formatSigned(value)}</p> })}</td>)}</tr>
 }
 
 function formatSigned(value: number) {
   return `${value > 0 ? '+' : ''}${formatMoney(value)}`
+}
+
+function valueTone(value: number) {
+  return value > 0 ? 'text-status-good' : value < 0 ? 'text-status-danger' : 'text-muted-foreground'
 }
 
 function verdictFor(target: ScenarioOutcome | undefined, baseline: ScenarioOutcome | undefined) {
