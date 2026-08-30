@@ -56,7 +56,7 @@ export function GlobalSettingsFields() {
             onChange={(e) => setGlobal({ endMode: e.target.value as 'auto' | 'custom' })}
             className={selectCls}
           >
-            <option value="auto">自动（还清/退休取晚）</option>
+            <option value="auto">自动（退休后30年/还清取晚）</option>
             <option value="custom">自定义年份</option>
           </select>
         </label>

@@ -9,6 +9,7 @@ import { LoanListEditor } from '@/components/inputs/LoanListEditor'
 import {
   ExpenseEditors,
   IncomeSegmentEditor,
+  RetirementIncomeEditor,
 } from '@/components/inputs/IncomeExpenseEditors'
 import {
   CurrentFundsEditor,
@@ -189,8 +190,16 @@ export function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <IncomeSegmentEditor />
-                  <FundIncomeEditor />
+                  <section className="rounded-lg border p-3">
+                    <p className="mb-2 text-sm font-medium">工资收入时间线</p>
+                    <IncomeSegmentEditor />
+                  </section>
+                  <section className="rounded-lg border p-3">
+                    <FundIncomeEditor />
+                  </section>
+                  <section className="rounded-lg border p-3">
+                    <RetirementIncomeEditor />
+                  </section>
                 </div>
               </CardContent>
             </Card>

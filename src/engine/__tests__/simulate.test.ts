@@ -824,10 +824,10 @@ describe('回归：第 0 年利率规则触发初始重锚', () => {
 })
 
 // ---------------------------------------------------------------------------
-// 回归：终点年（退休年/自定义终点年）含当年全年；有界重复事件完整发生
+// 回归：自动终点观察退休后 30 年；自定义终点含当年全年；有界重复事件完整发生
 // ---------------------------------------------------------------------------
 
-describe('回归：统一终点覆盖终点年全年', () => {
+describe('回归：统一终点覆盖退休后 30 年或自定义终点全年', () => {
   function yearSpanInput(globalPatch: Parameters<typeof Object.assign>[1]): AnalysisInput {
     return makeInput({
       loans: [],
@@ -851,7 +851,7 @@ describe('回归：统一终点覆盖终点年全年', () => {
     expect(snaps[snaps.length - 1]!.cash).toBeCloseTo(36 * (10_000 - 2_000), 6)
   })
 
-  it('retireYear 终点不因有无公积金而漂移', () => {
+  it('自动终点为退休后 30 年，且不因有无公积金而漂移', () => {
     const noFund = yearSpanInput({ retireYear: 2036 })
     const withFund = makeInput({
       loans: [],
@@ -868,8 +868,15 @@ describe('回归：统一终点覆盖终点年全年', () => {
         interestRate: 0.015, maturityPolicy: 'withdrawToWealth', maturityPrepayEffect: 'shorten-term',
       },
     })
-    expect(computeHorizonMonths(noFund)).toBe(132)
-    expect(computeHorizonMonths(withFund)).toBe(132)
+    // 2026 起，2036 年退休后再观察 30 年，覆盖到 2066 年末 = 41 年。
+    expect(computeHorizonMonths(noFund)).toBe(492)
+    expect(computeHorizonMonths(withFund)).toBe(492)
+  })
+
+  it('退休时间较晚时不被旧的 50 年上限截断', () => {
+    const input = yearSpanInput({ retireYear: 2056 })
+    // 2026 → 2086 年末，共 61 年。
+    expect(computeHorizonMonths(input)).toBe(732)
   })
 })
 

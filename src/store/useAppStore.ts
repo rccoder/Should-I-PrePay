@@ -144,6 +144,11 @@ const persistedSchema = z.object({
     inflationRate: z.number().nonnegative(),
     retireYear: z.number().optional(),
     retirePensionAnnual: z.number().nonnegative().optional(),
+    retirePensionMode: z.enum(['manual', 'estimate', 'none']).optional(),
+    retirePensionMonthly: z.number().nonnegative().optional(),
+    retirePensionContributionYears: z.number().nonnegative().optional(),
+    retirePensionAccountBalance: z.number().nonnegative().optional(),
+    retirePensionContributionBaseCapAnnual: z.number().nonnegative().optional(),
     fundMonthlyOffset: z.boolean(),
     // 老数据缺省时回落 10 万，避免整体重置
     emergencyReserve: z.number().nonnegative().default(100_000),

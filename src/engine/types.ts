@@ -237,6 +237,16 @@ export interface GlobalParams {
   retireYear?: number;
   /** 退休后养老金年收入（快捷模板写入收入段） */
   retirePensionAnnual?: number;
+  /** 退休后养老金来源：手填、通用公式粗估或不计入。 */
+  retirePensionMode?: 'manual' | 'estimate' | 'none';
+  /** 手填的每月到手养老金。 */
+  retirePensionMonthly?: number;
+  /** 粗估时预计累计养老保险缴费年限。 */
+  retirePensionContributionYears?: number;
+  /** 粗估时已知的基本养老保险个人账户余额；未知可填 0。 */
+  retirePensionAccountBalance?: number;
+  /** 粗估用年缴费基数上限（通常为参保地社平年工资的三倍）。 */
+  retirePensionContributionBaseCapAnnual?: number;
   /**
    * 房贷月供资金策略：true = 优先公积金月冲（默认，数学最优）；
    * false = 月供全部用活钱付，公积金只攒着（仅供对比，几乎总是更亏）。

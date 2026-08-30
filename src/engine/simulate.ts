@@ -21,14 +21,15 @@ import {
 } from './loan'
 import { effectiveAnnualRate, monthlyRate } from './rate'
 import { calendarYearAt, fundAnnualContributionAt, fundTimeline } from './fund'
+import { pensionMonthlyAtRetirement } from './pension'
 
-/** 模拟期数硬上限（50 年），防御退化输入 */
-export const MAX_HORIZON = 600
+/** 模拟期数硬上限（100 年），覆盖「退休后 30 年」的默认观察期。 */
+export const MAX_HORIZON = 1200
 
 /**
  * 统一模拟终点 H（总月数）：
  * max(全部贷款按原计划还清所需月数, 公积金处理时点+1,
- *     退休年偏移+12（含退休当年全年）, 自定义终点年偏移+12（含终点当年全年）,
+ *     自动模式下退休后 30 年的年末, 自定义终点年偏移+12（含终点当年全年）,
  *     最晚事件发生月+1, 有界重复事件（count/untilMonth）末次发生月+1, 12)
  * —— 所有方案必须模拟到同一 H 才可比（坑 7/9）。
  * 无界重复与定投不延伸终点，随 H 截断。
@@ -43,8 +44,9 @@ export function computeHorizonMonths(input: AnalysisInput): number {
   if (input.fund) {
     h = Math.max(h, fundTimeline(global, input.fund).processAtM + 1)
   }
-  if (global.retireYear) {
-    h = Math.max(h, (global.retireYear - global.startYear) * 12 + 12)
+  if (global.endMode === 'auto' && global.retireYear) {
+    // 默认把退休后的现金流、养老金与资产消耗再观察 30 年；含第 30 年全年。
+    h = Math.max(h, (global.retireYear - global.startYear + 30) * 12 + 12)
   }
   if (global.endMode === 'custom' && global.customEndYear) {
     h = Math.max(h, (global.customEndYear - global.startYear) * 12 + 12)
@@ -184,13 +186,16 @@ export function simulateScenario(
     let monthlyOutgo = 0
 
     // ③ 收入入账
-    const incomeSeg = input.incomes.find((s) => calYear >= s.startYear && calYear <= s.endYear)
+    const retired = global.retireYear !== undefined && calYear >= global.retireYear
+    const incomeSeg = !retired && input.incomes.find((s) => calYear >= s.startYear && calYear <= s.endYear)
     if (incomeSeg) {
       accts.cash += incomeSeg.annualSalary / 12
       if (incomeSeg.annualBonus > 0 && calMonth === incomeSeg.bonusMonth) {
         accts.cash += incomeSeg.annualBonus
       }
     }
+    // 退休年起工资停止，改为按选择的养老金模式向活钱按月入账。
+    if (retired) accts.cash += pensionMonthlyAtRetirement(global, input.incomes)
     // 公积金缴存流入（退休后不再缴存）
     if (input.fund && m < fundContribUntilM) {
       credit('fund', fundAnnualContributionAt(input.fund, calYear) / 12, accts)
