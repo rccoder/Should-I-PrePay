@@ -31,7 +31,7 @@ export function ComparisonTable({
       render: (id) => formatMoney(result.outcomes[id]?.metrics.endNetWorth ?? NaN),
     },
     {
-      label: '真实节省（含机会成本）',
+      label: '最终多赚/少赚（含机会成本）',
       render: (id) => {
         const v = result.outcomes[id]?.metrics.realSavingVsBaseline
         return id === result.baselineId ? '基准' : formatMoney(v ?? NaN)
@@ -47,15 +47,6 @@ export function ComparisonTable({
         const v = result.outcomes[id]?.metrics.nominalInterestSaving
         return id === result.baselineId ? '—' : formatMoney(v ?? NaN)
       },
-    },
-    {
-      label: '放弃理财收益',
-      render: (id) => {
-        if (id === result.baselineId) return '—'
-        const metrics = result.outcomes[id]?.metrics
-        return metrics ? formatMoney(Math.max(0, metrics.nominalInterestSaving - metrics.realSavingVsBaseline)) : '—'
-      },
-      tone: (id) => id === result.baselineId ? undefined : 'text-status-severe',
     },
     {
       label: '宽心指数',
@@ -90,6 +81,7 @@ export function ComparisonTable({
   ]
 
   return (
+    <div className="space-y-2">
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b text-left">
@@ -135,7 +127,31 @@ export function ComparisonTable({
         </tr>
       </tbody>
     </table>
+    <div className="rounded-md bg-muted/45 px-3 py-2 text-xs text-muted-foreground">
+      <p className="font-medium text-foreground">“含机会成本”到底是什么？</p>
+      <p className="mt-1 leading-relaxed">
+        它不是额外扣掉的一笔钱。提前还贷后，原来会继续留在公积金账户或理财账户里的钱，未来少产生的收益，就是机会成本。
+        所以最终多赚/少赚 = 少付贷款利息 + 公积金利息变化 + 理财收益变化 + 其他差异。
+      </p>
+      <PathBreakdown result={result} scenarios={scenarios} />
+    </div>
+    </div>
   )
+}
+
+function PathBreakdown({ result, scenarios }: { result: AnalysisResult; scenarios: Array<{ id: string; name: string; colorSlot: 1 | 2 | 3 | 4 }> }) {
+  const rows = [
+    { label: '① 少付贷款利息（提前还贷的好处）', pick: (id: string) => result.outcomes[id]?.metrics.nominalInterestSaving ?? 0 },
+    { label: '② 公积金利息变化（机会成本的一部分）', pick: (id: string) => result.outcomes[id]?.metrics.fundInterestDeltaVsBaseline ?? 0 },
+    { label: '③ 理财收益变化（机会成本的一部分）', pick: (id: string) => result.outcomes[id]?.metrics.wealthReturnDeltaVsBaseline ?? 0 },
+    { label: '④ 其他现金流差异（如计划未全额执行）', pick: (id: string) => result.outcomes[id]?.metrics.otherAssetPathDelta ?? 0 },
+    { label: '= 最终多赚/少赚（含机会成本）', pick: (id: string) => result.outcomes[id]?.metrics.realSavingVsBaseline ?? 0 },
+  ]
+  return <div className="mt-2 overflow-x-auto"><table className="w-full min-w-[640px] text-[11px]"><thead><tr className="border-b"><th className="py-1.5 text-left font-normal">怎么算</th>{scenarios.map((scenario) => <th key={scenario.id} className="py-1.5 text-left font-normal">{scenario.name}</th>)}</tr></thead><tbody>{rows.map((row) => <tr key={row.label} className="border-b last:border-0"><td className="py-1.5">{row.label}</td>{scenarios.map((scenario) => <td key={scenario.id} className="py-1.5 font-mono tabular-nums">{scenario.id === result.baselineId ? '基准' : formatSigned(row.pick(scenario.id))}</td>)}</tr>)}</tbody></table></div>
+}
+
+function formatSigned(value: number) {
+  return `${value > 0 ? '+' : ''}${formatMoney(value)}`
 }
 
 function verdictFor(target: ScenarioOutcome | undefined, baseline: ScenarioOutcome | undefined) {

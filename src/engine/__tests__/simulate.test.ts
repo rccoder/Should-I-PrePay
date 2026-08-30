@@ -524,6 +524,27 @@ describe('宽心指数与跑道口径', () => {
 })
 
 describe('机会成本口径端到端（runAnalysis）', () => {
+  it('资金路径拆解可与真实节省严格对账', () => {
+    const events: PrepayEvent[] = [
+      { id: 'p', type: 'prepay', monthIndex: 0, amount: 60_000, effect: 'shorten-term', source: 'wealth', wealthPoolId: 'p-hi' },
+    ]
+    const input = makeInput(
+      {
+        cash: { initialBalance: 0 },
+        pools: [{ id: 'p-hi', name: '池', riskLevel: 'high', initialBalance: 130_000, expectedAnnualReturn: 0.08, maxLossPct: 0.1 }],
+      },
+      [[], events],
+    )
+    const metrics = runAnalysis(input).outcomes['sc-1']!.metrics
+    expect(metrics.realSavingVsBaseline).toBeCloseTo(
+      metrics.nominalInterestSaving +
+      metrics.fundInterestDeltaVsBaseline +
+      metrics.wealthReturnDeltaVsBaseline +
+      metrics.otherAssetPathDelta,
+      6,
+    )
+  })
+
   it('应急活钱底线：定投只动用底线之外的部分，且预警说明降挡', () => {
     const input = makeInput(
       {

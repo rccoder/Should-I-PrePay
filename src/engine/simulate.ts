@@ -124,6 +124,8 @@ export function simulateScenario(
   const poolById = new Map(input.pools.map((p) => [p.id, p]))
   let cumInterest = 0
   let cumPrincipal = 0
+  let cumWealthReturn = 0
+  let cumFundInterest = 0
   let prevBroken = false
   let prevOffsetShort = false
   let prevTopup = false
@@ -354,10 +356,14 @@ export function simulateScenario(
       const r = stress
         ? pool.expectedAnnualReturn - pool.maxLossPct
         : pool.expectedAnnualReturn
-      accts.pools.set(poolId, balance * (1 + r / 12))
+      const gain = balance * (r / 12)
+      cumWealthReturn += gain
+      accts.pools.set(poolId, balance + gain)
     }
     if (accts.fundBalance !== null && input.fund) {
-      accts.fundBalance *= 1 + input.fund.interestRate / 12
+      const gain = accts.fundBalance * (input.fund.interestRate / 12)
+      cumFundInterest += gain
+      accts.fundBalance += gain
     }
 
     // ⑪ 公积金余额处理（在可提取时点触发，排在月冲之后避免双重扣款——坑 3）。
@@ -448,6 +454,8 @@ export function simulateScenario(
       cumInterest,
       cumPrincipal,
       cumTotalPaid: cumInterest + cumPrincipal,
+      cumWealthReturn,
+      cumFundInterest,
       netWorth,
       brokeThisMonth: accts.cash < 0,
       monthlyOutgo,

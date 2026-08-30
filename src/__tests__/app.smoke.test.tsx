@@ -46,6 +46,6 @@ describe('App 冒烟', () => {
     expect(screen.getAllByText('只做月冲').length).toBeGreaterThan(0)
     expect(screen.getAllByDisplayValue('月冲 + 公积金年冲').length).toBeGreaterThan(0)
     expect(screen.getAllByText('累计支付利息').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('真实节省（含机会成本）').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('最终多赚/少赚（含机会成本）').length).toBeGreaterThan(0)
   })
 })

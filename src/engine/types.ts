@@ -304,6 +304,10 @@ export interface MonthSnap {
   cumInterest: number;
   cumPrincipal: number;
   cumTotalPaid: number;
+  /** 理财池累计滚存收益（可为负，供资金路径解释使用） */
+  cumWealthReturn?: number;
+  /** 公积金累计计息（供资金路径解释使用） */
+  cumFundInterest?: number;
   netWorth: number;
   brokeThisMonth: boolean;
   /**
@@ -355,6 +359,12 @@ export interface ScenarioMetrics {
   realSavingVsBaseline: number;
   /** 名义少付利息（大众口径） */
   nominalInterestSaving: number;
+  /** 相比基准的公积金计息变化 */
+  fundInterestDeltaVsBaseline: number;
+  /** 相比基准的理财滚存收益变化 */
+  wealthReturnDeltaVsBaseline: number;
+  /** 为使资金路径与期末净资产严格对账的其他差额（如部分执行事件） */
+  otherAssetPathDelta: number;
 }
 
 export interface ScenarioOutcome {
