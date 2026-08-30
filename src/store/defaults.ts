@@ -51,6 +51,8 @@ export function makeDefaults(): AppStateData {
       endMode: 'auto',
       inflationEnabled: true,
       inflationRate: 0.025,
+      stressDrawdownEnabled: false,
+      stressDrawdownYear: 2030,
       retireYear: 2050,
       retirePensionMode: 'estimate',
       retirePensionContributionYears: 30,

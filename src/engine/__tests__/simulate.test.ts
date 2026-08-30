@@ -629,7 +629,7 @@ describe('机会成本口径端到端（runAnalysis）', () => {
     expect(prepay.metrics.realSavingVsBaseline).toBeLessThan(0)
   })
 
-  it('压力情形收益=预期−最大亏损：池余额按更低收益率滚存', () => {
+  it('压力情形为指定年份一次性回撤，之后恢复正常收益', () => {
     const input = makeInput({
       loans: [],
       incomes: [],
@@ -637,10 +637,12 @@ describe('机会成本口径端到端（runAnalysis）', () => {
       cash: { initialBalance: 0 },
       pools: [{ id: 'p', name: '池', riskLevel: 'low', initialBalance: 100_000, expectedAnnualReturn: 0.06, maxLossPct: 0.08 }],
     })
+    input.global.stressDrawdownEnabled = true
+    input.global.stressDrawdownYear = 2026
     const base = simulateScenario(input, input.scenarios[0]!, false, 12)
     const stress = simulateScenario(input, input.scenarios[0]!, true, 12)
     expect(base.snaps[11]!.pools['p']!).toBeCloseTo(100_000 * Math.pow(1.005, 12), 2)
-    expect(stress.snaps[11]!.pools['p']!).toBeCloseTo(100_000 * Math.pow(1 - 0.02 / 12, 12), 2)
+    expect(stress.snaps[11]!.pools['p']!).toBeCloseTo(100_000 * (1 - 0.08) * Math.pow(1.005, 12), 2)
   })
 })
 

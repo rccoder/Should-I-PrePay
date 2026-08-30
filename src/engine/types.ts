@@ -233,6 +233,10 @@ export interface GlobalParams {
   inflationEnabled: boolean;
   /** 默认 0.025；递增锚定模拟起点年 */
   inflationRate: number;
+  /** 压力测试：是否启用一次性年度最大回撤 */
+  stressDrawdownEnabled?: boolean;
+  /** 压力测试回撤发生年份 */
+  stressDrawdownYear?: number;
   /** 退休年（领退休金/可取公积金；也是公积金缴存的自然终点） */
   retireYear?: number;
   /** 退休后养老金年收入（快捷模板写入收入段） */
@@ -335,6 +339,7 @@ export interface MonthSnap {
 export type WarningKind =
   | 'broken' // 现金透支（资金断裂）
   | 'stress-broken' // 压力情形下断裂
+  | 'market-drawdown' // 压力情形年度最大回撤
   | 'offset-shortfall' // 公积金月冲不足，差额转现金自付
   | 'monthly-topup' // 月供缺口按策略从理财支取补足
   | 'prepay-shortfall' // 提前还款时资金不足，自动降挡部分执行

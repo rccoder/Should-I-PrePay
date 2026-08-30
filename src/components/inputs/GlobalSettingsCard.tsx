@@ -74,6 +74,18 @@ export function GlobalSettingsFields() {
           />
         </label>
       )}
+      <div className="block space-y-1">
+        <span className="block text-xs text-muted-foreground">压力测试：一次性年度最大回撤</span>
+        <label className="flex items-center gap-2 text-xs">
+          <input type="checkbox" checked={global.stressDrawdownEnabled ?? false} onChange={(e) => setGlobal({ stressDrawdownEnabled: e.target.checked })} />
+          开启压力测试
+        </label>
+        {global.stressDrawdownEnabled && <label className="block space-y-1">
+          <span className="text-[11px] text-muted-foreground">回撤发生年份：{global.stressDrawdownYear ?? global.startYear}</span>
+          <input type="range" min={global.startYear} max={global.startYear + 100} step={1} value={global.stressDrawdownYear ?? global.startYear} onChange={(e) => setGlobal({ stressDrawdownYear: Number(e.target.value) })} className="w-full" />
+          <span className="block text-[11px] leading-relaxed text-muted-foreground">该年年初按各理财池的最大回撤扣减一次，之后恢复正常预期收益；不是连续亏损。</span>
+        </label>}
+      </div>
       <label className="block space-y-1">
         <span className="block text-xs text-muted-foreground">应急活钱底线（只能活期）</span>
         <MoneyInput

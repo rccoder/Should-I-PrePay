@@ -135,6 +135,7 @@ export function simulateScenario(
   let prevOffsetShort = false
   let prevTopup = false
   let prevInvestShort = false
+  let drawdownApplied = false
 
   /** 应急活钱底线：定投与现金类提前还款不得动用（生活/月供/大额支出不受限） */
   const reserve = Math.max(0, input.global.emergencyReserve ?? 0)
@@ -361,15 +362,24 @@ export function simulateScenario(
     }
 
     // ⑩ 收益滚存（复利按月）
+    const drawdownYear = global.stressDrawdownYear
+    const isDrawdownStart = stress && global.stressDrawdownEnabled && drawdownYear !== undefined && calYear === drawdownYear && !drawdownApplied
+    if (isDrawdownStart) {
+      warnings.push({ m, kind: 'market-drawdown', detail: `压力情形：${calYear} 年年初发生一次理财最大回撤，之后恢复正常预期收益` })
+      drawdownApplied = true
+    }
     for (const [poolId, balance] of accts.pools) {
       const pool = poolById.get(poolId)
       if (!pool) continue
-      const r = stress
-        ? pool.expectedAnnualReturn - pool.maxLossPct
-        : pool.expectedAnnualReturn
-      const gain = balance * (r / 12)
+      const balanceAfterDrawdown = isDrawdownStart ? balance * (1 - pool.maxLossPct) : balance
+      if (isDrawdownStart && pool.maxLossPct > 0) {
+        const loss = balance - balanceAfterDrawdown
+        cumWealthReturn -= loss
+      }
+      const r = pool.expectedAnnualReturn
+      const gain = balanceAfterDrawdown * (r / 12)
       cumWealthReturn += gain
-      accts.pools.set(poolId, balance + gain)
+      accts.pools.set(poolId, balanceAfterDrawdown + gain)
     }
     if (accts.fundBalance !== null && input.fund) {
       const gain = accts.fundBalance * (input.fund.interestRate / 12)

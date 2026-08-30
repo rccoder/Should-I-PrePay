@@ -7,6 +7,7 @@ import { monthIndexToLabel } from '@/lib/format'
 const KIND_META: Record<WarningKind, { label: string; level: 'danger' | 'severe' | 'warn' }> = {
   broken: { label: '资金断裂', level: 'danger' },
   'stress-broken': { label: '压力情形断裂', level: 'danger' },
+  'market-drawdown': { label: '年度理财回撤', level: 'danger' },
   'offset-shortfall': { label: '公积金月冲不足', level: 'severe' },
   'monthly-topup': { label: '开始动用理财还月供', level: 'severe' },
   'prepay-shortfall': { label: '提前还款降挡', level: 'warn' },

@@ -142,6 +142,8 @@ const persistedSchema = z.object({
     customEndYear: z.number().optional(),
     inflationEnabled: z.boolean(),
     inflationRate: z.number().nonnegative(),
+    stressDrawdownEnabled: z.boolean().optional(),
+    stressDrawdownYear: z.number().int().optional(),
     retireYear: z.number().optional(),
     retirePensionAnnual: z.number().nonnegative().optional(),
     retirePensionMode: z.enum(['manual', 'estimate', 'none']).optional(),
