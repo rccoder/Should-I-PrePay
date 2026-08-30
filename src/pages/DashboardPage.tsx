@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { useAppStore } from '@/store/useAppStore'
 import { useExportImport } from '@/hooks/useExportImport'
-import { deriveMilestones } from '@/engine/milestones'
 import { TimelineEditor } from '@/components/timeline/TimelineEditor'
 import { useAnalysis } from '@/hooks/useAnalysis'
 import { Button } from '@/components/ui/button'
@@ -22,7 +21,6 @@ import { ScenarioBar } from '@/components/results/ScenarioBar'
 import { MetricTiles } from '@/components/results/MetricTiles'
 import { PeaceScoreCard } from '@/components/results/PeaceScoreCard'
 import { VerdictCard } from '@/components/results/VerdictCard'
-import { WarningsPanel } from '@/components/results/WarningsPanel'
 import { NetWorthChart } from '@/components/charts/NetWorthChart'
 import { LoanBalanceChart } from '@/components/charts/LoanBalanceChart'
 import { LiquidityChart } from '@/components/charts/LiquidityChart'
@@ -65,21 +63,6 @@ export function DashboardPage() {
     if (total <= 0) return 0
     return pools.reduce((a, p) => a + p.expectedAnnualReturn * p.initialBalance, 0) / total
   }, [pools])
-
-  // 时间轴关键节点：取聚焦方案（与盈亏平衡/结论卡一致），缺省基准
-  const milestones = useMemo(() => {
-    const focused =
-      (activeScenarioId && result.outcomes[activeScenarioId]) ||
-      Object.values(result.outcomes).find((o) => o.scenarioId !== result.baselineId) ||
-      result.outcomes[result.baselineId]
-    if (!focused) return []
-    return deriveMilestones(focused, {
-      global,
-      fund: useAppStore.getState().fund,
-      loans: useAppStore.getState().loans,
-      incomes: useAppStore.getState().incomes,
-    })
-  }, [result, activeScenarioId, global])
 
   return (
     <div className="min-h-screen">
@@ -192,12 +175,12 @@ export function DashboardPage() {
             <CardHeader>
               <CardTitle className="text-sm">时间轴 · 关键节点与计划事件</CardTitle>
               <p className="text-xs text-muted-foreground">
-                菱形节点由当前选中方案推导（悬停看时间）：断裂/花理财/活钱见底等风险点，
-                以及还清、退休、收入变化。修改计划请用左栏「⑤⑥」编辑器。
+                共同日历在上；每个方案独立显示还款计划、结果转折和风险预警。实心风险点代表预期情形，
+                空心风险点代表压力情形。悬停看原因与时间。
               </p>
             </CardHeader>
             <CardContent>
-              <TimelineEditor horizon={result.horizonMonths} milestones={milestones} />
+              <TimelineEditor horizon={result.horizonMonths} result={result} />
             </CardContent>
           </Card>
         </section>
@@ -265,19 +248,6 @@ export function DashboardPage() {
 
           {/* 右侧：图表区 */}
           <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">预警</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <WarningsPanel
-                  result={result}
-                  scenarios={scenarios}
-                  startYear={global.startYear}
-                  startMonth={global.startMonth}
-                />
-              </CardContent>
-            </Card>
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">流动资产（活钱+理财）</CardTitle>

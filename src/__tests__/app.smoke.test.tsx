@@ -34,7 +34,7 @@ describe('App 冒烟', () => {
     // 结果区
     expect(screen.getByText(/结论 · /)).toBeTruthy()
     expect(screen.getAllByText(/宽心指数/).length).toBeGreaterThan(0)
-    expect(screen.getAllByText('预警').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('风险预警').length).toBeGreaterThan(0)
     expect(screen.getAllByText('净资产演化').length).toBeGreaterThan(0)
     expect(screen.getAllByText('盈亏平衡分析').length).toBeGreaterThan(0)
     expect(screen.getAllByText('多方案对比').length).toBeGreaterThan(0)

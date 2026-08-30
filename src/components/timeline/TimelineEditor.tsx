@@ -1,14 +1,9 @@
+import { useMemo } from 'react'
 import { useAppStore } from '@/store/useAppStore'
-import { SCENARIO_COLORS } from '@/config/chart-theme'
+import { SCENARIO_COLORS, STATUS_COLORS } from '@/config/chart-theme'
 import { formatMoney, monthIndexToLabel } from '@/lib/format'
-import type { Milestone } from '@/engine/milestones'
-
-/**
- * 统一时间轴（纯展示）：
- * - 「关键节点」轨道：引擎推导的里程碑（活钱见底/开始花理财/断裂/还清/退休/收入断崖）
- * - 人生事件与各方案还款段的计划位置
- * 不支持拖拽编辑——修改请在左栏对应编辑器中进行。
- */
+import { deriveMilestones, type Milestone } from '@/engine/milestones'
+import type { AnalysisResult, ScenarioDef, Warning, WarningKind } from '@/engine/types'
 
 const LIFE_META = {
   'big-expense': { label: '大额支出', color: 'var(--chart-slot-2)' },
@@ -16,80 +11,65 @@ const LIFE_META = {
   invest: { label: '年度定投', color: 'var(--chart-slot-1)' },
 } as const
 
-const TONE_COLOR = {
-  danger: 'var(--status-danger)',
-  severe: 'var(--status-severe)',
-  warn: 'var(--status-warn)',
-  good: 'var(--status-good)',
-  info: 'var(--chart-slot-1)',
-} as const
+const RISK_META: Record<WarningKind, { label: string; color: string }> = {
+  broken: { label: '资金断裂', color: STATUS_COLORS.danger },
+  'stress-broken': { label: '资金断裂', color: STATUS_COLORS.danger },
+  'offset-shortfall': { label: '公积金月冲不足', color: STATUS_COLORS.severe },
+  'monthly-topup': { label: '开始花理财', color: STATUS_COLORS.severe },
+  'prepay-shortfall': { label: '提前还款降挡', color: STATUS_COLORS.warn },
+  'invest-shortfall': { label: '定投降挡', color: STATUS_COLORS.warn },
+  'expense-shortfall': { label: '大额支出不足', color: STATUS_COLORS.severe },
+}
 
-export function TimelineEditor({
-  horizon,
-  milestones,
-}: {
-  horizon: number
-  milestones: Milestone[]
-}) {
-  const startYear = useAppStore((s) => s.global.startYear)
-  const startMonth = useAppStore((s) => s.global.startMonth)
+const isCommonMilestone = (milestone: Milestone) =>
+  milestone.label.startsWith('收入降至') ||
+  milestone.label.startsWith('公积金') ||
+  milestone.label.startsWith('退休')
+
+/** 多方案时间轴：共享日历在上，每个方案一个大轨道，内部再分计划 / 转折 / 风险。 */
+export function TimelineEditor({ horizon, result }: { horizon: number; result: AnalysisResult }) {
+  const global = useAppStore((s) => s.global)
   const lifeEvents = useAppStore((s) => s.lifeEvents)
   const scenarios = useAppStore((s) => s.scenarios)
+  const activeScenarioId = useAppStore((s) => s.activeScenarioId)
+  const setActiveScenario = useAppStore((s) => s.setActiveScenario)
+  const fund = useAppStore((s) => s.fund)
+  const loans = useAppStore((s) => s.loans)
+  const incomes = useAppStore((s) => s.incomes)
+  const { startYear, startMonth } = global
 
-  // 年份刻度：约 8~10 个均匀标签
+  const allMilestones = useMemo(() => {
+    const options = { global, fund, loans, incomes }
+    return Object.fromEntries(scenarios.map((scenario) => {
+      const outcome = result.outcomes[scenario.id]
+      return [scenario.id, outcome ? deriveMilestones(outcome, options) : []]
+    })) as Record<string, Milestone[]>
+  }, [result, scenarios, global, fund, loans, incomes])
+
+  const commonMilestones = allMilestones[result.baselineId]?.filter(isCommonMilestone) ?? []
   const totalYears = Math.ceil(horizon / 12)
   const stepYears = Math.max(1, Math.ceil(totalYears / 8))
-  const ticks: Array<{ year: number; pct: number }> = []
-  for (let y = 0; y <= totalYears; y += stepYears) {
-    ticks.push({ year: y, pct: ((y * 12) / horizon) * 100 })
-  }
-  // 轨道背景网格线（与刻度对齐）
+  const ticks = Array.from({ length: Math.floor(totalYears / stepYears) + 1 }, (_, i) => {
+    const year = i * stepYears
+    return { year, pct: ((year * 12) / horizon) * 100 }
+  })
   const gridStyle = {
     backgroundImage: 'linear-gradient(to right, var(--border) 1px, transparent 1px)',
     backgroundSize: `${((stepYears * 12) / horizon) * 100}% 100%`,
   }
-
-  const prepayScenarios = scenarios.filter((x) => !x.isBaseline)
-
-  const eventTitle = (label: string, amount: number, m: number) =>
-    `${label} · ${formatMoney(amount)} · ${monthIndexToLabel(m, startYear, startMonth)}`
+  const pointTitle = (label: string, m: number, detail?: string) =>
+    `${label} · ${monthIndexToLabel(m, startYear, startMonth)}${detail ? `\n${detail}` : ''}`
 
   return (
     <div className="select-none">
-      {/* 图例 */}
       <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
         <span className="font-medium text-foreground">图例：</span>
-        <span className="inline-flex items-center gap-1">
-          <span aria-hidden className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: 'var(--status-danger)' }} />
-          断裂
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span aria-hidden className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: 'var(--status-severe)' }} />
-          活钱见底/花理财
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span aria-hidden className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: 'var(--status-warn)' }} />
-          跌破应急线/收入下降
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span aria-hidden className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: 'var(--status-good)' }} />
-          贷款还清
-        </span>
-        {Object.entries(LIFE_META).map(([key, meta]) => (
-          <span key={key} className="inline-flex items-center gap-1">
-            <span aria-hidden className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: meta.color }} />
-            {meta.label}
-          </span>
-        ))}
-        {prepayScenarios.map((sc) => (
-          <span key={sc.id} className="inline-flex items-center gap-1">
-            <span aria-hidden className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: SCENARIO_COLORS[sc.colorSlot] }} />
-            还款·{sc.name}
-          </span>
-        ))}
+        <span>圆点＝计划</span><span>菱形＝关键转折</span>
+        <span className="inline-flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-foreground" />风险·预期</span>
+        <span className="inline-flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full border-2 border-foreground" />风险·压力</span>
+        <span>黄＝降挡，橙＝需动用理财，红＝资金断裂</span>
       </div>
 
-      {/* 年份刻度轴 */}
       <div className="relative h-5 border-b">
         {ticks.map(({ year, pct }) => (
           <div key={year} className="absolute top-0 h-full" style={{ left: `${pct}%` }}>
@@ -101,156 +81,93 @@ export function TimelineEditor({
         ))}
       </div>
 
-      {/* 关键节点轨道（引擎推导，随参数实时变化） */}
-      <TrackRow label="关键节点" gridStyle={gridStyle}>
-        {milestones.map((ms, i) => (
-          <span
-            key={`${ms.label}-${i}`}
-            className="group absolute top-0 z-10 -translate-x-1/2"
-            style={{ left: `${Math.min(99.5, Math.max(0.5), (ms.m / horizon) * 100)}%` }}
-            title={`${ms.label} · ${monthIndexToLabel(ms.m, startYear, startMonth)}`}
-          >
-            <span
-              className="block h-3 w-3 -translate-x-1/2 translate-y-[6px] rotate-45 border border-background shadow"
-              style={{ backgroundColor: TONE_COLOR[ms.tone] }}
-            />
-            <span
-              className="pointer-events-none absolute left-1/2 top-[22px] max-w-[9rem] -translate-x-1/2 truncate whitespace-nowrap text-[10px] leading-tight"
-              style={{ color: TONE_COLOR[ms.tone] }}
-            >
-              {ms.label}
-            </span>
-          </span>
-        ))}
-        {milestones.length === 0 && (
-          <span className="absolute inset-y-0 left-2 flex items-center text-[10px] text-muted-foreground/60">
-            当前配置下无风险节点
-          </span>
-        )}
-      </TrackRow>
-
-      {/* 人生事件轨道 */}
-      <TrackRow label="人生事件" gridStyle={gridStyle}>
-        {lifeEvents.map((ev) => (
-          <StaticMarker
-            key={ev.id}
-            pct={(ev.monthIndex / horizon) * 100}
-            color={LIFE_META[ev.type].color}
-            repeatable={false}
-            title={eventTitle(
-              ev.type === 'invest' ? `每年定投(${ev.monthOfYear}月)` : ev.label,
-              ev.amount,
-              ev.monthIndex,
-            )}
-          />
-        ))}
-        {lifeEvents.length === 0 && (
-          <EmptyHint text="左栏「⑤ 人生大事」里的事件会显示在这里" />
-        )}
-      </TrackRow>
-
-      {/* 各方案的提前还款轨道 */}
-      {prepayScenarios.map((sc) => (
-        <TrackRow
-          key={sc.id}
-          label={`还款·${sc.name}`}
-          dotColor={SCENARIO_COLORS[sc.colorSlot]}
-          gridStyle={gridStyle}
-        >
-          {sc.events.map((ev) => (
-            <StaticMarker
-              key={ev.id}
-              pct={(ev.monthIndex / horizon) * 100}
-              color={SCENARIO_COLORS[sc.colorSlot]}
-              repeatable={Boolean(ev.repeat)}
-              title={eventTitle(
-                `提前还款${ev.effect === 'shorten-term' ? '(缩期限)' : '(减月供)'}`,
-                ev.amount,
-                ev.monthIndex,
-              )}
-            />
+      <div className="mt-2 rounded-md border bg-muted/25 px-2 py-1.5">
+        <p className="mb-1 text-[11px] font-medium text-muted-foreground">共同日历（所有方案相同）</p>
+        <TrackRow label="人生计划" gridStyle={gridStyle}>
+          {lifeEvents.map((event) => (
+            <PlanMarker key={event.id} m={event.monthIndex} horizon={horizon} color={LIFE_META[event.type].color}
+              title={pointTitle(event.type === 'invest' ? `每年定投（${event.monthOfYear}月）` : event.label, event.monthIndex, formatMoney(event.amount))}
+              repeatable={event.type === 'invest'} />
           ))}
-          {sc.events.length === 0 && (
-            <EmptyHint text={`在左栏「⑥」为「${sc.name}」编排后显示在这里`} />
-          )}
         </TrackRow>
-      ))}
-
-      {/* 循环段说明 */}
-      <p className="mt-2 text-[10px] text-muted-foreground">
-        菱形 = 引擎推导的关键节点；圆点 = 计划事件（右上小点表示循环执行）。
-        本轨道为展示视图，修改请使用左栏「⑤⑥」编辑器。
-      </p>
-    </div>
-  )
-}
-
-function TrackRow({
-  label,
-  dotColor,
-  gridStyle,
-  children,
-}: {
-  label: string
-  dotColor?: string
-  gridStyle?: React.CSSProperties
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex items-start gap-2 border-b py-2 last:border-b-0">
-      <span className="w-28 shrink-0 pt-0.5 truncate text-[11px] text-muted-foreground">
-        {dotColor && (
-          <span
-            aria-hidden
-            className="mr-1 inline-block h-2 w-2 rounded-full align-middle"
-            style={{ backgroundColor: dotColor }}
-          />
-        )}
-        {label}
-      </span>
-      <div className="relative h-8 flex-1 rounded bg-muted/60" style={gridStyle}>
-        {children}
+        <TrackRow label="共同转折" gridStyle={gridStyle}>
+          {commonMilestones.map((milestone, index) => (
+            <MilestoneMarker key={`${milestone.label}-${index}`} m={milestone.m} horizon={horizon} label={milestone.label}
+              title={pointTitle(milestone.label, milestone.m)} />
+          ))}
+        </TrackRow>
       </div>
+
+      <div className="mt-3 space-y-3">
+        {scenarios.map((scenario) => {
+          const outcome = result.outcomes[scenario.id]
+          return <ScenarioLane key={scenario.id} scenario={scenario} horizon={horizon} gridStyle={gridStyle}
+            milestones={(allMilestones[scenario.id] ?? []).filter((m) => !isCommonMilestone(m))}
+            baseWarnings={outcome?.base.warnings ?? []} stressWarnings={outcome?.stress.warnings ?? []} pointTitle={pointTitle}
+            active={activeScenarioId === scenario.id}
+            onSelect={() => setActiveScenario(activeScenarioId === scenario.id ? null : scenario.id)} />
+        })}
+      </div>
+      <p className="mt-2 text-[10px] text-muted-foreground">每个方案分别展示：还款计划、结果转折与风险。风险节点只标首次触发；悬停可看月份和原因。</p>
     </div>
   )
 }
 
-function StaticMarker({
-  pct,
-  color,
-  title,
-  repeatable,
-}: {
-  pct: number
-  color: string
-  title: string
-  repeatable?: boolean
+function ScenarioLane({ scenario, horizon, gridStyle, milestones, baseWarnings, stressWarnings, pointTitle, active, onSelect }: {
+  scenario: ScenarioDef; horizon: number; gridStyle: React.CSSProperties; milestones: Milestone[]
+  baseWarnings: Warning[]; stressWarnings: Warning[]; pointTitle: (label: string, m: number, detail?: string) => string
+  active: boolean; onSelect: () => void
 }) {
-  return (
-    <span
-      title={`${title}${repeatable ? ' · 循环' : ''}`}
-      aria-label={title}
-      className="group absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2"
-      style={{ left: `${Math.min(100, Math.max(0, pct))}%` }}
-    >
-      <span
-        className="block h-4 w-4 rounded-full border-2 border-background shadow"
-        style={{ backgroundColor: color }}
-      />
-      {repeatable && (
-        <span
-          className="absolute -right-1 -top-1 block h-1.5 w-1.5 rounded-full"
-          style={{ backgroundColor: color }}
-        />
-      )}
-    </span>
-  )
+  const color = SCENARIO_COLORS[scenario.colorSlot]
+  const stressOnly = stressWarnings.filter((warning) => !baseWarnings.some((base) => base.kind === warning.kind && base.m === warning.m))
+  return <section
+    className={`cursor-pointer rounded-lg border transition-colors hover:bg-accent/30 ${active ? 'bg-accent/40 ring-1 ring-foreground/15' : ''}`}
+    style={{ borderLeftWidth: 3, borderLeftColor: color }}
+    role="button"
+    tabIndex={0}
+    aria-pressed={active}
+    title="点击选中该方案，供结论与盈亏平衡分析使用"
+    onClick={onSelect}
+    onKeyDown={(event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        onSelect()
+      }
+    }}
+  >
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b px-2.5 py-1.5 text-xs">
+      <span className="font-medium" style={{ color }}>{scenario.name}</span>
+      <span className="text-[10px] text-muted-foreground">预期风险 {baseWarnings.length} · 压力新增 {stressOnly.length}</span>
+    </div>
+    <div className="px-2.5 py-1">
+      <TrackRow label="还款计划" dotColor={color} gridStyle={gridStyle}>
+        {scenario.events.map((event) => <PlanMarker key={event.id} m={event.monthIndex} horizon={horizon} color={color} repeatable={Boolean(event.repeat)}
+          title={pointTitle(event.source === 'fund' ? '公积金年冲' : '额外提前还款', event.monthIndex, event.amount < 0 ? '使用公积金账户全部余额' : formatMoney(event.amount))} />)}
+      </TrackRow>
+      <TrackRow label="结果转折" gridStyle={gridStyle}>
+        {milestones.filter((m) => m.tone === 'good').map((milestone, index) => <MilestoneMarker key={`${milestone.label}-${index}`} m={milestone.m} horizon={horizon} label={milestone.label} title={pointTitle(milestone.label, milestone.m)} />)}
+      </TrackRow>
+      <TrackRow label="风险预警" gridStyle={gridStyle}>
+        {baseWarnings.map((warning, index) => <RiskMarker key={`base-${warning.kind}-${index}`} warning={warning} horizon={horizon} title={pointTitle(RISK_META[warning.kind].label, warning.m, warning.detail)} />)}
+        {stressOnly.map((warning, index) => <RiskMarker key={`stress-${warning.kind}-${index}`} warning={warning} horizon={horizon} stress title={pointTitle(`压力：${RISK_META[warning.kind].label}`, warning.m, warning.detail)} />)}
+        {baseWarnings.length === 0 && stressOnly.length === 0 && <EmptyHint text="预期与压力情形均未触发风险" />}
+      </TrackRow>
+    </div>
+  </section>
 }
 
-function EmptyHint({ text }: { text: string }) {
-  return (
-    <span className="absolute inset-y-0 left-2 flex items-center text-[10px] text-muted-foreground/60">
-      {text}
-    </span>
-  )
+function TrackRow({ label, dotColor, gridStyle, children }: { label: string; dotColor?: string; gridStyle: React.CSSProperties; children: React.ReactNode }) {
+  return <div className="flex items-start gap-2 border-b py-1.5 last:border-b-0"><span className="w-20 shrink-0 pt-0.5 text-[10px] text-muted-foreground">{dotColor && <i className="mr-1 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: dotColor }} />}{label}</span><div className="relative h-7 flex-1 rounded bg-muted/60" style={gridStyle}>{children}</div></div>
 }
+function pct(m: number, horizon: number) { return `${Math.min(99.5, Math.max(0.5, (m / horizon) * 100))}%` }
+function PlanMarker({ m, horizon, color, title, repeatable }: { m: number; horizon: number; color: string; title: string; repeatable?: boolean }) {
+  return <span title={title} aria-label={title} className="absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 cursor-help" style={{ left: pct(m, horizon) }}><i className="block h-3.5 w-3.5 rounded-full border-2 border-background shadow" style={{ backgroundColor: color }} />{repeatable && <i className="absolute -right-1 -top-1 block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />}</span>
+}
+function MilestoneMarker({ m, horizon, label, title }: { m: number; horizon: number; label: string; title: string }) {
+  return <span title={title} aria-label={title} className="absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 cursor-help" style={{ left: pct(m, horizon) }}><i className="block h-3 w-3 rotate-45 border border-background shadow" style={{ backgroundColor: STATUS_COLORS.good }} /><span className="absolute left-1/2 top-4 max-w-20 -translate-x-1/2 truncate whitespace-nowrap text-[9px] text-muted-foreground">{label}</span></span>
+}
+function RiskMarker({ warning, horizon, stress, title }: { warning: Warning; horizon: number; stress?: boolean; title: string }) {
+  const meta = RISK_META[warning.kind]
+  return <span title={title} aria-label={title} className="absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 cursor-help" style={{ left: pct(warning.m, horizon) }}><i className={`block h-3.5 w-3.5 rounded-full shadow ${stress ? 'border-2 bg-background' : 'border-2 border-background'}`} style={{ borderColor: stress ? meta.color : undefined, backgroundColor: stress ? undefined : meta.color }} /><span className="absolute left-1/2 top-4 max-w-24 -translate-x-1/2 truncate whitespace-nowrap text-[9px]" style={{ color: meta.color }}>{meta.label}</span></span>
+}
+function EmptyHint({ text }: { text: string }) { return <span className="absolute inset-y-0 left-2 flex items-center text-[10px] text-muted-foreground/60">{text}</span> }
